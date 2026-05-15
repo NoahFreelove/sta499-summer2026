@@ -1,0 +1,417 @@
+---
+title: "An Algorithm to Automate the Adjudication of Lines of Treatment (LOT) for Multiple Myeloma"
+author: "Valerie Pan"
+date: "2026-04-06"
+output:
+  html_document:
+    toc: true
+  pdf_document: 
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\newpage
+
+# Data Cleaning 
+
+```{r load_packages, warning=FALSE, message=FALSE}
+# code to install packages if needed
+#if (!require(readxl)) install.packages("readxl") 
+#if (!require(tidyverse)) install.packages("tidyverse") # install package if needed
+
+library(readxl)
+library(tidyverse)
+```
+
+This is code specific for cleaning **FlatIron** Data. The other dataset may need to be cleaned before applying the LOT Algorithm.  
+
+```{r load_data, message = FALSE}
+df <- read_excel("LoT Adjudication Datasets.xlsx", col_names = FALSE, sheet = 1, skip = 3)
+# don't use first line as header, and skip 3 first lines (which are header in excel sheet)
+head(df) # look at the data
+```
+
+```{r clean_data}
+# rename the columns (unsure what column 17 and 18 refer to)
+names(df)[1:(length(df)-2)] <- c("f", "Diagnosis Date", "Death Flag", "Death Date", 
+                             "Treatment Regimens", "Reviewer 1 Name", 
+                             "Reviewer 1 LoT", "Reviewer 2 Name", 
+                             "Reviewer 2 LoT", "Flatiron Line Number", 
+                             "startdate", "enddate", "Response", 
+                             "Assessment Date", "Specimen Type", "residual")
+
+df_lot <- df %>% select(c("f", "Diagnosis Date", "Death Date", 
+                          "Treatment Regimens", "Reviewer 1 LoT", 
+                          "Reviewer 2 LoT", "Flatiron Line Number"))
+
+head(df_lot) # look at the data
+```
+
+```{r tester_NA}
+# observe what the NA rows look like 
+na <- data.frame()
+for (i in 1:length(df_lot$`f`)) {
+  row <- df_lot[i, ]
+  
+  if (is.na(row$`f`)) { 
+    na <- rbind(na, row)
+  }
+}
+```
+
+From the test loop above, we see that in all cases where 'f' is NA, all other columns except 'trt' are NA. We can therefore assume that it will be a continuation of the previous row's 'trt', unless 'trt' is also NA. 
+
+In the following code block, we will mutate the dataframe df_lot into a dataframe df_patient. 
+df_patient is further organized, with each 'f' (patient id) appearing only once in the dataframe as a row. All treatment regimens for a given 'f' are saved in a vector that is found in the 'trt' column. 
+Reviewer 1 and 2 LOT will be saved in the columns 'rev1_lot' and 'rev2_lot' to be used in later evaluation of our LOT algorithm. We also save an additional column, count_row, which is the original dataset's LOT count. This will also be compared to our LOT algorithm later.  
+
+```{r mutate_data_new, warning = FALSE}
+
+# initialization 
+f <- df_lot[1, ]$`f`  # initialize f (first patient)
+trt <- c()  # intialize a vector 
+rev1_lot <- as.integer(df_lot[1, ]$`Reviewer 1 LoT`) # initialize reviewer 1's LOT
+rev2_lot <- as.integer(df_lot[1, ]$`Reviewer 2 LoT`) # initialize reviewer 2's LOT
+count_row <- as.integer(df_lot[1, ]$`Flatiron Line Number`) # initialize data's LOT count
+
+# initialize an empty data frame
+df_patient <- tibble(f = character(), trt = list(), rev1_lot = integer(), 
+                     rev2_lot = integer(), count_row = integer()) 
+
+# go through each row in df_lot
+# organize the data further in a new dataset df_patient
+for(i in 1:length(df_lot$`f`)) { 
+  
+  row <- df_lot[i, ] # the current row 
+  
+  if ( is.na(row$`f`) ) { 
+    # 'f' is NA and 'trt' is not NA
+    # don't change 'f' but the 'trt' belongs to the previous line 
+    # (by our logic from the NA test loop)
+    
+    # save the 'trt' string of the 'f' = NA row to the previous row's 'trt'
+    if (is.na(row$`Treatment Regimens`) == FALSE){
+      trt[length(trt)] <- paste0(trt[length(trt)], df_lot[i, ]$`Treatment Regimens`)
+    }
+    
+  } else if (row$`f` == f) { # current row f matches f 
+    
+    f <- df_lot[i, ]$`f` # the current patient
+    
+    # save the reviewer's LOTs
+    rev1_lot <- as.integer(df_lot[i, ]$`Reviewer 1 LoT`)
+    rev2_lot <- as.integer(df_lot[i, ]$`Reviewer 2 LoT`)
+    count_row <- as.integer(df_lot[i, ]$`Flatiron Line Number`)
+    
+    # store all the treatments for a single patient in a vector
+    trt <- c(trt, df_lot[i, ]$`Treatment Regimens`)
+    
+    # only when the last row is reached
+    if (i == length(df_lot$`f`)) { 
+      # saving the last data into the dataframe
+      
+      # save 'f' and 'trt' to a df 
+      df_patient <- df_patient %>% add_row(f = f, trt = list(trt), rev1_lot = rev1_lot, 
+                                           rev2_lot = rev2_lot, count_row = count_row)  
+    
+      f <- df_lot[i, ]$`f` # save the new patient as current patient
+      rev1_lot <- as.integer(df_lot[i, ]$`Reviewer 1 LoT`)
+      rev2_lot <- as.integer(df_lot[i, ]$`Reviewer 2 LoT`)
+      count_row <- as.integer(df_lot[i, ]$`Flatiron Line Number`)
+      trt <- c() # reset trt, and then add the new one
+      trt <- c(trt, df_lot[i, ]$`Treatment Regimens`)
+      
+    } 
+    
+  } else if (row$`f` != f) { # row changes (to a new 'f'/ id)
+    # save previous f and trt to a df 
+    df_patient <- df_patient %>% add_row(f = f, trt = list(trt), rev1_lot = rev1_lot, 
+                                         rev2_lot = rev2_lot, count_row = count_row)
+    
+    f <- df_lot[i, ]$`f` # save the new patient as current patient
+    rev1_lot <- as.integer(df_lot[i, ]$`Reviewer 1 LoT`)
+    rev2_lot <- as.integer(df_lot[i, ]$`Reviewer 2 LoT`)
+    count_row <- as.integer(df_lot[i, ]$`Flatiron Line Number`)
+    trt <- c() # reset trt, and then add the new one
+    trt <- c(trt, df_lot[i, ]$`Treatment Regimens`)
+    
+  }
+}
+```
+
+```{r check}
+# examples to show we correctly identified and saved the trts for each patient (f)
+df_patient[1, ]; df_patient[1, ]$trt
+
+# further examples: 
+# df_patient[2, ]; df_patient[2, ]$trt
+# df_patient[110, ]; df_patient[110, ]$trt 
+```
+
+Data cleaning is successful, so I will now proceed with codifying the rules. 
+
+\newpage
+
+# Defining a Line of Therapy (LOT)
+
+**A New Line of Therapy:** any one of the following conditions met
+
+1. start a new line of treatment after discontinuing a previous line 
+
+    - regimen is not discontinued if some drugs of regimen are not discontinued
+
+2. **unplanned** addition or substitution (switching) of 1+ drugs in a regimen is a new line of therapy 
+
+3. in patients undergoing >1 SCT, each SCT (autologous or allogenic) is a new line of therapy
+
+    - Although this rule 3 is here, it seems like "Transplant" doesn't count as a new line of therapy. 
+
+```{r tester_Transplant}
+transplant <- data.frame()
+
+# observe what the transplant rows look like
+for (i in 1:nrow(df_patient)) {
+  patient <- df_patient[i, ]
+  trt <- patient$trt[[1]] # extract vector of trt in a row
+  
+  if ("Transplant" %in% trt) { 
+     transplant <- rbind(transplant, patient)
+  }
+  
+}
+```
+
+From the test code above, we note that when "Transplant" is observed in the dataset, it is not counted as a new LOT (despite the rule for SCT). There is a rule in the algorithm below to account for this.
+
+# The LOT Algorithm
+
+```{r lot_function}
+# function automating the adjudication of lot 
+lot_algorithm <- function(patient){ # patient is a row of the dataframe
+  
+  # initialization
+  trt <- patient$trt[[1]] # extract vector of trts
+  
+  if (any("Transplant" %in% trt)) {
+    # based on observations of Transplant in the dataset
+    # we can remove it at the beginning, to make things easier for LOT counts
+    trt <- trt[trt != "Transplant"]
+  }  
+  
+  og_num <- length(trt) # number of lots in original (should be based on trt length)
+  lines <- 1 # the first line is always the first lot
+  trt_prev <- strsplit(trt[1], ",")[[1]]  # initialize first treatment
+  
+  for (i in 1:og_num) {
+    trt2 <- strsplit(trt[i], ",")[[1]] # split up trt by "," (trt is a list)
+    
+    if (i != 1){ # make sure we don't go over the limit 
+
+      # make the comparison using i - 1 
+      trt1 <- strsplit(trt[i-1], ",")[[1]] # split up trt by ","
+      
+      # here we'll codify the rules
+      
+      # rule 1: discontinuing a previous line means new lot    
+      if (any(trt2 %in% trt1)) { # observed a repeated drug in a trt (same lot)
+        
+        # rule 2: adding/substituting 1+ drugs means new lot
+        if (any(!(trt2 %in% trt1))) { # observed something in trt2 not in trt1 (new lot)
+          
+          # however, if we add back something present before (look at trt_prev)
+          # then that would not be a new lot
+          if (!all(trt2 %in% trt_prev)) { # returns false if trt2 is a subset of trt_prev
+            
+            lines <- lines + 1 # save as an extra line
+            trt_prev <- strsplit(trt[i], ",")[[1]]
+            
+          }
+          
+        }
+        
+      } else { # observed no repeated drug in a trt (new lot)
+        
+        lines <- lines + 1 # save as an extra line
+        trt_prev <- strsplit(trt[i], ",")[[1]]
+        
+      }
+      
+    }
+    
+  }
+  
+  return(lines) # return the final number of LOT
+  
+}
+```
+
+```{r test_case1}
+# to view a specific patient data 
+df_patient[1, ]; df_patient[1, ]$trt
+
+# run our algorithm on patient/row 1
+lot_algorithm(df_patient[1, ]) # we obtain number of LOT = 13, which is correct 
+
+# further examples: 
+#lot_algorithm(df_patient[2, ])
+#lot_algorithm(df_patient[3, ])
+#lot_algorithm(df_patient[3, ])
+#lot_algorithm(df_patient[110, ])
+```
+
+This code works successfully with the cases above. 
+We will now write up some code to compare the LOT algorithm with the Reviewer's LOT for the remaining cases. 
+
+\newpage
+
+# Algorithm Performance
+
+We run the algorithm on all cases and save the LOT in a column (lot_alg) of df_patient. 
+
+```{r all_cases}
+
+lot_alg <- c() # initialize a vector to save values from the algorithm
+
+for (i in 1:nrow(df_patient)){
+  lot_alg <- c(lot_alg, lot_algorithm(df_patient[i, ]))  
+}
+
+# add the vector as a column to df_patient
+df_patient$lot_alg <- lot_alg
+
+```
+
+In the following code, we will compare the ability of the LOT algorithm to classify LOT compared to the Reviewer's LOT. In this dataset, Reviewer 1 and Reviewer 2 have the same LOT values, although I left both variables rev1_lot and rev2_lot in the data frame. However, I will make the comparison of the LOT algorithm with only one of the Reviewer's LOT. 
+
+## Algorithm LOT Compared to Reviewer 1 LOT
+
+```{r compare_case_alg}
+# comparison vectors that return TRUE/FALSE for each row
+alg_greater_than <- df_patient$lot_alg > df_patient$rev1_lot
+alg_less_than <- df_patient$lot_alg < df_patient$rev1_lot
+alg_equal_to <- df_patient$lot_alg == df_patient$rev1_lot
+
+# View results (average of the TRUE/FALSE)
+results <- round(c(sum(alg_greater_than) / nrow(df_patient), 
+             sum(alg_less_than) / nrow(df_patient), 
+             sum(alg_equal_to) / nrow(df_patient)), 3)
+
+print(paste(results))  
+
+```
+
+Currently, we have 73.6% successful classification using our LOT algorithm, when compared to the Reviewer's LOT classification. 19.1% of the LOT classification from the algorithm are greater than the Reviewer's LOT classification. 7.3% of the LOT classification from the algorithm are smaller than the Reviewer's LOT classification.
+
+## Dataset LOT Compared to Reviewer 1 LOT
+```{r compare_case_data}
+# comparison vectors that return TRUE/FALSE for each row
+dat_greater_than <- df_patient$count_row > df_patient$rev1_lot
+dat_less_than <- df_patient$count_row < df_patient$rev1_lot
+dat_equal_to <- df_patient$count_row == df_patient$rev1_lot
+
+# View results (average of the TRUE/FALSE)
+results <- round(c(sum(dat_greater_than) / nrow(df_patient), 
+             sum(dat_less_than) / nrow(df_patient), 
+             sum(dat_equal_to) / nrow(df_patient)), 3)
+
+print(paste(results))  
+```
+
+The original dataset's algorithm also has 73.6% successful classification when compared to the Reviewer's LOT classification. However they have a higher rate of over-counting LOTs (23.6%) than under-counting LOTs (2.7%). 
+
+## Misclassified Cases
+
+Following are the misclassified cases of the dataset, my LOT algorithm, and both the dataset and my algorithm.  
+
+```{r wrong_cases}
+compare_df <- data.frame(Row = integer(), Reviewer_LOT = integer(), 
+                         Algorithm_LOT = integer(), Dataset_LOT = integer(), 
+                         Error = character())
+
+for (i in 1:nrow(df_patient)){
+  if ((alg_equal_to[i] == FALSE) & (dat_equal_to[i] == FALSE) ) {
+    compare_df <- compare_df %>% 
+      add_row(Row = i, Reviewer_LOT = df_patient[i,]$rev1_lot, 
+              Algorithm_LOT = df_patient[i,]$lot_alg, 
+              Dataset_LOT = df_patient[i,]$count_row, Error = "Both")
+    
+  } else if ( (alg_equal_to[i] == TRUE) & (dat_equal_to[i] == FALSE) ) {
+    compare_df <- compare_df %>% 
+      add_row(Row = i, Reviewer_LOT = df_patient[i,]$rev1_lot, 
+              Algorithm_LOT = df_patient[i,]$lot_alg, 
+              Dataset_LOT = df_patient[i,]$count_row, Error = "Dataset") 
+    
+  } else if ( (alg_equal_to[i] == FALSE) & (dat_equal_to[i] == TRUE) ) {
+    compare_df <- compare_df %>% 
+      add_row(Row = i, Reviewer_LOT = df_patient[i,]$rev1_lot, 
+              Algorithm_LOT = df_patient[i,]$lot_alg, 
+              Dataset_LOT = df_patient[i,]$count_row, Error = "Algorithm")
+    
+  }
+}
+
+compare_df
+```
+
+I looked at a few of my misclassified cases to see where the error was. I think for most of these cases, manual review is needed to determine the true LOT.
+
+- Patients 7 & 17 were misclassified due to "Line Zero". I didn't write this into the algorithm because that seems specific to this dataset. The reviewers classified it as 0 LOT because they were also unsure.
+
+- Patient 8 was misclassified due to singular "Lenalidomide" not counting as a new LOT. This isn't always the case (e.g. Patient 1 has a singular Lenalidomide, but classifies a new LOT). 
+
+```{r tester_Len}
+len <- data.frame()
+
+# observe what the singular Lenalidomide rows look like
+for (i in 1:nrow(df_patient)) {
+  patient <- df_patient[i, ]
+  trt <- patient$trt[[1]] # extract vector of trt in a row
+  
+  if ("Lenalidomide" %in% trt) { # Lenalidomide administered alone
+     len <- rbind(len, patient)
+  }
+  
+}
+
+head(len)
+```
+
+- Patient 21 was misclassified due to singular "Prednisone" not counting as a new LOT. This is the only case where it occurs in the data. 
+
+```{r tester_pred}
+pred <- data.frame()
+
+# observe what the singular Prednisone rows look like
+for (i in 1:nrow(df_patient)) {
+  patient <- df_patient[i, ]
+  trt <- patient$trt[[1]] # extract vector of trt in a row
+  
+  if ("Prednisone" %in% trt) { # Prednisone administered alone
+     pred <- rbind(pred, patient)
+  }
+  
+}
+
+pred
+```
+
+- Patient 27 was misclassified when "Carfilzomib" was added back into the treatment plan. It was previously there, but after a gap. This one I was not able to account for in my algorithm, but it may be possible to add it.  
+
+```{r test_case27}
+df_patient[27, ]; df_patient[27, ]$trt
+```
+
+- Patient 28 was misclassified when "Daratumumab/Hyaluronidase-Fihj" was added to treatment containing other drugs, but not counted as a new LOT. 
+
+```{r test_case28}
+df_patient[28, ]; df_patient[28, ]$trt
+```
+
+# Next Steps
+
+To further improve the algorithm, I would consider adding some more code that can highlight peculiar cases in the treatment regimens that should be manually reviewed (e.g. "Line Zero"). One idea may be to add a vector containing all drug/treatment names to help filter out unfamiliar terminology. 
+
+Also, if my algorithms' accuracy could be further improved first, then maybe using a comparison to the  original dataset's LOT classification would be a good indicator for cases to be manually reviewed (currently their performance is similar so adding this indicator would not be very beneficial). 
