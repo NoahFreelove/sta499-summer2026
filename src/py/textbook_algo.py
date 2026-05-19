@@ -7,6 +7,7 @@ Outputs a comparison table to stdout and saves results to lot_results.xlsx
 """
 
 import pandas as pd
+import os
 
 # ---------------------------------------------------------------------------
 # Drug synonym table
@@ -212,7 +213,9 @@ def load_patient_data(filepath: str, sheet: int = 0) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def main():
-    filepath = "LoT Adjudication Datasets.xlsx"
+    # “..” + os.filesep() + “data” + os.filesep” + “LoT…”
+    # print(os.getcwd())
+    filepath = ".." + os.sep + ".." + os.sep + "data" + os.sep + "LoT Adjudication Datasets.xlsx"
 
     print(f"Loading data from '{filepath}' ...\n")
     df = load_patient_data(filepath)
