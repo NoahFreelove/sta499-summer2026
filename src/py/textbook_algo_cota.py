@@ -45,7 +45,7 @@ Outputs a comparison table to stdout and saves results to lot_results_cota.xlsx.
 
 import re
 import pandas as pd
-
+import os
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -290,7 +290,8 @@ def lot_algorithm_cota(trt_sequence: list[frozenset]) -> tuple[int, list[str]]:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    filepath = "LoT Adjudication Datasets.xlsx"
+    #filepath = "LoT Adjudication Datasets.xlsx"
+    filepath = ".." + os.sep + ".." + os.sep + "data" + os.sep + "LoT Adjudication Datasets.xlsx"
 
     print(f"Loading COTA data from '{filepath}' ...\n")
     df = load_patient_data(filepath)
