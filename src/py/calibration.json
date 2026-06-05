@@ -1,0 +1,110 @@
+{
+  "cota": {
+    "n": 136,
+    "ground_truth": "Alpesh (primary reviewer)",
+    "overall_accuracy_algo": 0.6544117647058824,
+    "overall_within1_algo": 0.9411764705882353,
+    "overall_ci_algo": [
+      0.5712346739279279,
+      0.7291051391176895
+    ],
+    "overall_accuracy_vendor": 0.6102941176470589,
+    "n_with_vendor": 136,
+    "human_agreement_alpesh_vs_alberto": 1.0,
+    "human_pair_n": 136,
+    "agreement_buckets": {
+      "HIGH": {
+        "n": 64,
+        "accuracy": 0.859375,
+        "ci_low": 0.7538349160536257,
+        "ci_high": 0.9242151299358556,
+        "within1": 0.96875,
+        "rule": "algorithm == vendor AND no edge-case flags"
+      },
+      "MEDIUM": {
+        "n": 12,
+        "accuracy": 0.6666666666666666,
+        "ci_low": 0.3906175873976139,
+        "ci_high": 0.8618821601026385,
+        "within1": 0.9166666666666666,
+        "rule": "algorithm == vendor BUT an edge-case flag fired"
+      },
+      "LOW": {
+        "n": 60,
+        "accuracy": 0.43333333333333335,
+        "ci_low": 0.31572200394400635,
+        "ci_high": 0.5589678534530513,
+        "within1": 0.9166666666666666,
+        "rule": "algorithm != vendor"
+      }
+    },
+    "flag_buckets": {
+      "noflag": {
+        "n": 64,
+        "accuracy": 0.859375,
+        "ci_low": 0.7538349160536257,
+        "ci_high": 0.9242151299358556,
+        "within1": 0.96875,
+        "rule": "no edge-case flags"
+      },
+      "softflag": {
+        "n": 49,
+        "accuracy": 0.4897959183673469,
+        "ci_low": 0.3557488315940086,
+        "ci_high": 0.6253266846659078,
+        "within1": 0.9183673469387755,
+        "rule": "soft flag (e.g. partial_removal / duplicate_line)"
+      },
+      "hardflag": {
+        "n": 23,
+        "accuracy": 0.43478260869565216,
+        "ci_low": 0.25634368332198654,
+        "ci_high": 0.6318895069498304,
+        "within1": 0.9130434782608695,
+        "rule": "hard flag (CAR-T / investigational) - rules cannot adjudicate"
+      }
+    },
+    "deployment_triage": {
+      "auto_accept_coverage": 0.47058823529411764,
+      "auto_accept_accuracy": 0.859375,
+      "auto_accept_within1": 0.96875,
+      "review_coverage": 0.5294117647058824
+    },
+    "triage": {
+      "auto_accept_coverage": 0.47058823529411764,
+      "auto_accept_accuracy": 0.859375,
+      "auto_accept_within1": 0.96875,
+      "review_coverage": 0.5294117647058824
+    }
+  },
+  "flatiron": {
+    "n": 110,
+    "ground_truth": "Reviewer 1",
+    "overall_accuracy_algo": 0.7909090909090909,
+    "overall_within1_algo": 0.990909090909091,
+    "overall_accuracy_vendor": 0.7363636363636363,
+    "agreement_buckets": {
+      "AGREE": {
+        "n": 87,
+        "accuracy": 0.8505747126436781,
+        "ci_low": 0.7609521068039846,
+        "ci_high": 0.9105464136976358,
+        "within1": 0.9885057471264368,
+        "rule": "algorithm == vendor (Flatiron line number)"
+      },
+      "DISAGREE": {
+        "n": 23,
+        "accuracy": 0.5652173913043478,
+        "ci_low": 0.3681104930501695,
+        "ci_high": 0.7436563166780135,
+        "within1": 1.0,
+        "rule": "algorithm != vendor"
+      }
+    },
+    "triage": {
+      "auto_accept_coverage": 0.7909090909090909,
+      "auto_accept_accuracy": 0.8505747126436781,
+      "auto_accept_within1": 0.9885057471264368
+    }
+  }
+}
