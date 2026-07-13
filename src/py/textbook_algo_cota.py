@@ -43,8 +43,9 @@ using Reviewer 1).
 Outputs a comparison table to stdout and saves results to lot_results_cota.xlsx.
 """
 
+from __future__ import annotations
+
 import re
-import pandas as pd
 import os
 # ---------------------------------------------------------------------------
 # Constants
@@ -147,6 +148,8 @@ def load_patient_data(filepath: str, sheet: str = "Cota") -> pd.DataFrame:
     Returns a DataFrame with columns:
         cpid, trt_sequence (list of frozensets), rev_alpesh, rev_alberto, cota_lot
     """
+    import pandas as pd
+
     df_raw = pd.read_excel(filepath, sheet_name=sheet, header=0)
 
     # Forward-fill cpid and line number into continuation rows

@@ -1,1 +1,6 @@
 .DS_Store
+
+# Derived patient-level records are reproducible but sensitive. Keep them local.
+artifacts/
+src/py/__pycache__/
+tests/__pycache__/

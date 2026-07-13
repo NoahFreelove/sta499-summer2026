@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "lot_patient.schema.json",
+  "title": "Normalized LOT patient",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "patient_key",
+    "source",
+    "trajectory",
+    "reviewer_lot",
+    "cota_lot",
+    "preamble_lot",
+    "quality_flags"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "patient_key": {"type": "string", "pattern": "^[A-Z]+-[0-9a-f]{16}$"},
+    "source": {"enum": ["cota", "preamble"]},
+    "trajectory": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/treatment_event"}
+    },
+    "reviewer_lot": {"$ref": "#/$defs/reviewer_lot"},
+    "cota_lot": {"type": ["integer", "null"], "minimum": 0},
+    "preamble_lot": {"type": ["integer", "null"], "minimum": 0},
+    "quality_flags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "$defs": {
+    "nullable_date": {"type": ["string", "null"], "format": "date"},
+    "nullable_lot": {"type": ["integer", "null"], "minimum": 0},
+    "reviewer_lot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewer_a", "reviewer_b", "consensus", "consensus_status"],
+      "properties": {
+        "reviewer_a": {"$ref": "#/$defs/nullable_lot"},
+        "reviewer_b": {"$ref": "#/$defs/nullable_lot"},
+        "consensus": {"$ref": "#/$defs/nullable_lot"},
+        "consensus_status": {"enum": ["agreed", "disagreement", "missing_reviewer"]}
+      }
+    },
+    "treatment_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "order", "source_line_number", "drugs", "start_date", "end_date",
+        "line_start_date", "line_end_date", "fragment_count",
+        "continuation_row_count", "quality_flags"
+      ],
+      "properties": {
+        "order": {"type": "integer", "minimum": 1},
+        "source_line_number": {"type": ["integer", "null"], "minimum": 0},
+        "drugs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "start_date": {"$ref": "#/$defs/nullable_date"},
+        "end_date": {"$ref": "#/$defs/nullable_date"},
+        "line_start_date": {"$ref": "#/$defs/nullable_date"},
+        "line_end_date": {"$ref": "#/$defs/nullable_date"},
+        "fragment_count": {"type": "integer", "minimum": 0},
+        "continuation_row_count": {"type": "integer", "minimum": 0},
+        "quality_flags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cv_manifest.schema.json",
+  "title": "COTA cross-validation manifest row",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["patient_key", "fold", "reviewer_consensus_lot"],
+  "properties": {
+    "patient_key": {"type": "string", "pattern": "^COTA-[0-9a-f]{16}$"},
+    "fold": {"type": "integer", "minimum": 0},
+    "reviewer_consensus_lot": {"type": "integer", "minimum": 0}
+  }
+}
