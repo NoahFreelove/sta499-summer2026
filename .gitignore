@@ -2,5 +2,6 @@
 
 # Derived patient-level records are reproducible but sensitive. Keep them local.
 artifacts/
+data/new_cota_data.xlsx
 src/py/__pycache__/
 tests/__pycache__/

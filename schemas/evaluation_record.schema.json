@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evaluation_record.schema.json",
+  "title": "Restricted LOT evaluation record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "patient_key", "source", "context", "trajectory", "cota_lot", "reviewer_lot", "quality_metadata"],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "patient_key": {"type": "string", "pattern": "^COTA(OLD|NEW)-[0-9a-f]{20}$"},
+    "source": {"enum": ["cota_adjudicated", "cota_unadjudicated"]},
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["diagnosis_date"],
+      "properties": {"diagnosis_date": {"type": ["string", "null"], "format": "date"}}
+    },
+    "trajectory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["order", "drugs", "source_line_number", "source_group_index", "source_line_start_date", "source_line_end_date", "quality_flags"],
+        "properties": {
+          "order": {"type": "integer", "minimum": 1},
+          "drugs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "source_line_number": {"type": ["integer", "null"], "minimum": 0},
+          "source_group_index": {"type": ["integer", "null"], "minimum": 1},
+          "source_line_start_date": {"type": ["string", "null"], "format": "date"},
+          "source_line_end_date": {"type": ["string", "null"], "format": "date"},
+          "quality_flags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        }
+      }
+    },
+    "cota_lot": {"type": ["integer", "null"], "minimum": 0},
+    "reviewer_lot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewer_a", "reviewer_b", "consensus", "consensus_status"],
+      "properties": {
+        "reviewer_a": {"type": ["integer", "null"], "minimum": 0},
+        "reviewer_b": {"type": ["integer", "null"], "minimum": 0},
+        "consensus": {"type": ["integer", "null"], "minimum": 0},
+        "consensus_status": {"enum": ["agreed", "disagreement", "missing_reviewer", "unadjudicated"]}
+      }
+    },
+    "quality_metadata": {"type": "object"}
+  }
+}

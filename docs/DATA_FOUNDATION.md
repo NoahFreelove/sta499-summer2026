@@ -1,32 +1,74 @@
 # LOT data-preparation and evaluation foundation
 
-This foundation converts the two adjudication workbooks into normalized,
-patient-level JSON Lines records. Raw patient identifiers are used only in memory;
-derived records and fold manifests contain deterministic source-scoped hashes.
-These hashes are pseudonyms, not a claim of irreversible anonymization.
+This foundation reads the adjudicated COTA sheet in `LoT Adjudication
+Datasets.xlsx` and the separate, unadjudicated `new_cota_data.xlsx`. It does not
+contain model calls, retrieval, APIs, continuous learning, Docker, or a user
+interface.
 
-## Outputs
+Raw patient identifiers are used only in memory. Every generated patient-level
+artifact uses deterministic, source-scoped pseudonyms and lives under the
+git-ignored `artifacts/restricted/` or `artifacts/blind/` directories.
+These keys are operational pseudonyms, not a claim of irreversible anonymization.
 
-All generated outputs live under `artifacts/` and are intentionally git-ignored
-because they are derived from sensitive patient data.
+## Data contracts
 
-| Output | Purpose |
+Two deliberately separate record contracts prevent answer leakage:
+
+| Contract | Schema | Contents |
+|---|---|---|
+| Restricted evaluation record | `schemas/evaluation_record.schema.json` | Pseudonymous patient key, flattened normalized trajectory, source line/group metadata, vendor line dates, COTA LOT, reviewer labels when present, and quality metadata |
+| Blind model input | `schemas/blind_model_input.schema.json` | Pseudonymous case key, flattened normalized trajectory, and diagnosis date only |
+
+Blind inputs never contain source line numbers, COTA LOT, reviewer labels,
+algorithm output/flags, quality flags, or vendor-derived line start/end dates.
+
+## Vendor-boundary policy
+
+Each reconstructed COTA treatment string may contain several bracketed regimen
+groups. Preparation emits each group as a separate chronological treatment event
+in source order. This prevents a future model from recovering COTA LOT merely by
+counting vendor rows.
+
+The source does not give separate dates for groups within a vendor line. Its only
+treatment dates are vendor-line start/end dates, so those dates are retained only
+in restricted evaluation records and omitted from blind inputs. The group order
+is recoverable, but exact within-line group timing cannot be recovered from these
+workbooks.
+
+## Leakage-safe folds and overlap handling
+
+Preparation computes two trajectory signatures from the flattened events:
+
+- exact ordered trajectory;
+- ordered trajectory after collapsing consecutive duplicate events.
+
+Records sharing either signature form one exclusion group. Old/new records with
+the same raw patient ID are also joined internally before the raw ID is discarded.
+Connected exclusion groups are assigned as indivisible units to deterministic
+folds. Therefore duplicate trajectories and cross-workbook versions cannot cross
+train/test boundaries.
+
+The patient-level exclusion manifest and CV manifest are restricted. The public
+overlap report contains aggregate counts only.
+
+## Generated outputs
+
+| Output | Classification |
 |---|---|
-| `artifacts/normalized/cota_patients.jsonl` | 136 COTA patients, ordered normalized treatment sets, dates, reviewer consensus, and separate COTA LOT |
-| `artifacts/normalized/preamble_patients.jsonl` | New-workbook patients in the same normalized representation |
-| `artifacts/reports/data_quality_report.json` | Aggregate continuation, malformed-treatment, duplicate, overlap, and fold counts |
-| `artifacts/cv/cota_5fold_manifest.csv` | Deterministic patient-level folds for all 136 adjudicated COTA patients |
-| `artifacts/reports/baseline_evaluation.json` | Current algorithm metrics and pseudonymous agree-but-wrong cases |
+| `artifacts/restricted/evaluation/cota_adjudicated.jsonl` | Restricted |
+| `artifacts/restricted/evaluation/cota_unadjudicated.jsonl` | Restricted |
+| `artifacts/restricted/overlap/exclusion_groups.jsonl` | Restricted |
+| `artifacts/restricted/cv/cota_adjudicated_5fold_manifest.csv` | Restricted |
+| `artifacts/blind/cota_adjudicated.jsonl` | Blind model input |
+| `artifacts/blind/cota_unadjudicated.jsonl` | Blind model input |
+| `artifacts/public/data_quality_report.json` | Public aggregate |
+| `artifacts/public/baseline_evaluation.json` | Public aggregate |
 
-The normalized patient and fold-row contracts are defined by
-`schemas/lot_patient.schema.json` and `schemas/cv_manifest.schema.json`.
-The manifest's `fold` is the held-out/test fold for that patient; the other four
-folds form the corresponding training set. Assignment is deterministic and
-stratified by reviewer-consensus LOT.
+Patient-level baseline debugging rows are not written by default. To create a
+clearly restricted debugging artifact, pass `--restricted-cases` to the evaluation
+command.
 
-## Reproduce
-
-From the repository root:
+## Reproduce from the repository root
 
 ```bash
 python3 -m pip install -r requirements.txt
@@ -35,5 +77,20 @@ python3 src/py/evaluate_baseline.py
 python3 -m unittest discover -s tests -v
 ```
 
-Preparation and evaluation outputs are deterministically serialized. Re-running
-the commands against unchanged workbooks produces byte-identical files.
+Explicit paths are supported:
+
+```bash
+python3 src/py/prepare_lot_data.py \
+  --project-root . \
+  --adjudicated-workbook data/LoT\ Adjudication\ Datasets.xlsx \
+  --new-workbook data/new_cota_data.xlsx \
+  --output-dir artifacts
+
+python3 src/py/evaluate_baseline.py \
+  --project-root . \
+  --patients artifacts/restricted/evaluation/cota_adjudicated.jsonl \
+  --output artifacts/public/baseline_evaluation.json
+```
+
+`LOT_PROJECT_ROOT` may be used instead of `--project-root`. With unchanged inputs,
+preparation and evaluation serialize byte-identical outputs.

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "blind_model_input.schema.json",
+  "title": "Leakage-resistant blind LOT model input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "case_key", "trajectory", "context"],
+  "properties": {
+    "schema_version": {"const": "2.0.0"},
+    "case_key": {"type": "string", "pattern": "^CASE-[0-9a-f]{20}$"},
+    "trajectory": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["order", "drugs"],
+        "properties": {
+          "order": {"type": "integer", "minimum": 1},
+          "drugs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["diagnosis_date"],
+      "properties": {"diagnosis_date": {"type": ["string", "null"], "format": "date"}}
+    }
+  }
+}
