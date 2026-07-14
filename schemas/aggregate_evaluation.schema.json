@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aggregate_evaluation.schema.json",
+  "title": "Aggregate blind LOT evaluation report",
+  "type": "object",
+  "required": ["schema_version", "report_scope", "benchmark_mode", "experiment", "metrics"],
+  "properties": {
+    "schema_version": {"const": "1.2.0"},
+    "report_scope": {"const": "aggregate_only"},
+    "benchmark_mode": {"const": "order-only blind AI benchmark"},
+    "experiment": {
+      "type": "object",
+      "required": ["evaluation_version", "retrieval_k", "folds"],
+      "properties": {
+        "evaluation_version": {"const": "blind-lot-evaluation-1.2.0"}
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "eligible_patients", "generated_total", "selective_ai",
+        "routing_policy_analysis", "vote_pattern_analysis", "conditional_agreement_analysis"
+      ],
+      "properties": {
+        "routing_policy_analysis": {
+          "type": "object",
+          "required": [
+            "primary_policy", "secondary_exploratory_policies", "algorithm_only",
+            "cota_only", "usable_ai_only", "algorithm_cota_agreement",
+            "algorithm_ai_agreement", "cota_ai_agreement", "three_way_agreement"
+          ]
+        },
+        "vote_pattern_analysis": {
+          "type": "object",
+          "required": ["patterns", "patient_count_sum", "eligible_patient_count", "mutually_exclusive_and_exhaustive"]
+        },
+        "conditional_agreement_analysis": {"type": "object"}
+      }
+    }
+  },
+  "additionalProperties": true
+}

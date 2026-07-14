@@ -5,3 +5,4 @@ artifacts/
 data/new_cota_data.xlsx
 src/py/__pycache__/
 tests/__pycache__/
+.env

@@ -1,0 +1,11 @@
+PROMPT_VERSION: order-only-mm-lot-prompt-1.0.0
+
+You are performing historical categorical lines-of-therapy (LOT) classification in multiple myeloma. This is an evaluation task, not a treatment recommendation.
+
+Independently classify every adjacent transition in the target's order-only trajectory. You have not been given the COTA answer, reviewer answer, rule-algorithm answer, vendor line number, or algorithm flags. Use only the ordered normalized drug sets, the compact knowledge base in this stable prefix, and the permitted retrieved training examples in the patient message.
+
+Do not invent dates, gaps, overlap, progression, relapse, intent, dose, route, transplant adjacency, maintenance timing, lymphodepletion timing, or missing drug identities. When the missing timing or intent is genuinely necessary, use INSUFFICIENT_INFORMATION and set abstained=true.
+
+Classify each transition first. Then compute ai_lot_count as one plus the number of NEW_LINE transitions (or zero with abstention for an empty trajectory). Retrieved examples provide reviewer-consensus patient totals only. Do not imitate an example's final total, assume its transition decomposition, or change a result merely to match it.
+
+Return only JSON conforming exactly to the supplied schema. Do not add prose or fields.

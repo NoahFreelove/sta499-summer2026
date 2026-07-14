@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "joined_evaluation.schema.json",
+  "title": "Restricted joined blind LOT evaluation record",
+  "type": "object",
+  "required": [
+    "case_key", "fold", "reviewer_lot", "algorithm_lot", "cota_lot", "ai_lot",
+    "ai_abstained", "usable_ai_vote", "routing_decision", "routing_reason",
+    "accepted_by_algorithm_only", "accepted_by_cota_only", "accepted_by_usable_ai_only",
+    "accepted_by_algorithm_cota", "accepted_by_algorithm_ai", "accepted_by_cota_ai",
+    "accepted_by_three_way", "vote_pattern"
+  ],
+  "properties": {
+    "case_key": {"type": "string", "pattern": "^CASE-[0-9a-f]{20}$"},
+    "fold": {"type": "integer", "minimum": 0},
+    "reviewer_lot": {"type": "integer", "minimum": 0},
+    "algorithm_lot": {"type": ["integer", "null"], "minimum": 0},
+    "cota_lot": {"type": ["integer", "null"], "minimum": 0},
+    "ai_lot": {"type": ["integer", "null"], "minimum": 0},
+    "ai_abstained": {"type": "boolean"},
+    "usable_ai_vote": {"type": "boolean"},
+    "accepted_by_algorithm_only": {"type": "boolean"},
+    "accepted_by_cota_only": {"type": "boolean"},
+    "accepted_by_usable_ai_only": {"type": "boolean"},
+    "accepted_by_algorithm_cota": {"type": "boolean"},
+    "accepted_by_algorithm_ai": {"type": "boolean"},
+    "accepted_by_cota_ai": {"type": "boolean"},
+    "accepted_by_three_way": {"type": "boolean"},
+    "algorithm_only_correct": {"type": ["boolean", "null"]},
+    "cota_only_correct": {"type": ["boolean", "null"]},
+    "usable_ai_only_correct": {"type": ["boolean", "null"]},
+    "algorithm_cota_policy_correct": {"type": ["boolean", "null"]},
+    "algorithm_ai_policy_correct": {"type": ["boolean", "null"]},
+    "cota_ai_policy_correct": {"type": ["boolean", "null"]},
+    "three_way_policy_correct": {"type": ["boolean", "null"]},
+    "vote_pattern": {
+      "enum": [
+        "all_three_agree", "algorithm_ai_agree_cota_differs",
+        "cota_ai_agree_algorithm_differs", "algorithm_cota_agree_ai_differs",
+        "algorithm_cota_agree_ai_abstains", "all_three_differ",
+        "algorithm_cota_differ_ai_abstains", "invalid_ai_output",
+        "ai_abstains_missing_non_ai_vote", "usable_ai_missing_non_ai_vote"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,29 @@
+{
+  "knowledge_version": "order-only-mm-lot-1.0.0",
+  "benchmark_scope": "Historical categorical multiple-myeloma LOT classification from ordered normalized drug sets only; never treatment recommendation.",
+  "observable_concepts": [
+    {"concept": "identical_regimen_continuation", "guidance": "Identical consecutive normalized drug sets support SAME_LINE, but an unavailable long gap could change the interpretation.", "default_strength": "moderate"},
+    {"concept": "drug_addition", "guidance": "An added active drug may indicate NEW_LINE, but the 28-day build window, progression, toxicity, and intent are unavailable; use uncertainty when those distinctions matter.", "default_strength": "limited"},
+    {"concept": "partial_drug_removal", "guidance": "A strict subset may be de-escalation, maintenance, toxicity management, or a new phase. Without dates or intent this is context-limited and may require INSUFFICIENT_INFORMATION.", "default_strength": "conflicting"},
+    {"concept": "full_nonoverlapping_switch", "guidance": "A fully non-overlapping active regimen usually supports NEW_LINE unless the observable tokens plausibly represent a planned transplant or cellular-therapy workflow.", "default_strength": "strong"},
+    {"concept": "regimen_reappearance", "guidance": "Exact reappearance after an observable intervening different regimen supports a rechallenge and NEW_LINE; this does not establish anything about an unobserved gap.", "default_strength": "moderate"},
+    {"concept": "transplant_token", "tokens": ["autologous sct", "autologous stem cell transplant", "allogeneic sct", "asct", "transplant", "stem_cell_boost"], "guidance": "Recognize the token, but conditioning adjacency, frontline status, and maintenance timing are unavailable. Do not assume that nearby events form one line.", "default_strength": "limited"},
+    {"concept": "car_t", "tokens": ["cart", "car-t", "idecabtagene vicleucel", "ciltacabtagene autoleucel", "abecma", "carvykti"], "guidance": "A recognizable CAR-T product is a treatment event. Flu/Cy can be lymphodepletion, but timing and intent are unavailable, so do not automatically join it to CAR-T.", "default_strength": "limited"},
+    {"concept": "bispecific", "tokens": ["teclistamab", "elranatamab", "talquetamab", "linvoseltamab", "tecvayli", "elrexfio", "talvey"], "guidance": "Repeated identical appearances of the same bispecific are continuation. Step-up timing is unavailable.", "default_strength": "moderate"},
+    {"concept": "investigational_or_unmappable", "markers": ["investigational", "study drug", "trial", "unknown", "unmapped", "protocol"], "guidance": "Do not invent a drug identity. Mark affected transitions INSUFFICIENT_INFORMATION.", "default_strength": "limited"},
+    {"concept": "steroid_only", "tokens": ["dexamethasone", "prednisone", "prednisolone", "methylprednisolone"], "guidance": "Steroid-only intent can be active treatment, bridging, symptom control, or palliation. Mark an affected boundary uncertain when intent is necessary.", "default_strength": "conflicting"}
+  ],
+  "unavailable_or_context_limited": [
+    "28-day regimen build window",
+    "long or short treatment-gap rules",
+    "date overlap",
+    "progression or relapse timing",
+    "conditioning adjacency",
+    "post-transplant maintenance timing",
+    "CAR-T lymphodepletion timing",
+    "dose-only changes",
+    "route-only changes",
+    "treatment intent"
+  ],
+  "independence_rule": "Interpret the order-only sequence independently. This knowledge is not a copy of the project rule algorithm and contains no algorithm flags or implementation details."
+}
