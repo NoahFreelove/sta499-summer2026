@@ -84,9 +84,9 @@ k=5 usable AI accuracy: 21/47, or 44.7%
 
 Its potential value is mainly as a selective confidence filter, not as a replacement for the existing algorithm.
 
-The most important interpretation
+## The most important interpretation
 
-The AI did not reliably catch errors by explicitly disagreeing.
+> The AI did not reliably catch errors by explicitly disagreeing.
 
 In fact, when the algorithm and COTA agreed but the AI disagreed:
 
