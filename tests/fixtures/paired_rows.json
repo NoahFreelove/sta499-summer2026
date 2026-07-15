@@ -1,0 +1,20 @@
+{
+  "schema_version": "synthetic-paired-fixture-1.0.0",
+  "description": "Pseudonymous aggregate-evaluation inputs covering paired state transitions.",
+  "rows": [
+    {"name":"both_abstain","fold":0,"reviewer":2,"algorithm":2,"cota":2,"k3_ai":2,"k3_abstain":true,"k5_ai":2,"k5_abstain":true},
+    {"name":"new_usable_correct","fold":1,"reviewer":2,"algorithm":2,"cota":2,"k3_ai":1,"k3_abstain":true,"k5_ai":2,"k5_abstain":false},
+    {"name":"new_usable_wrong","fold":1,"reviewer":2,"algorithm":3,"cota":3,"k3_ai":2,"k3_abstain":true,"k5_ai":3,"k5_abstain":false},
+    {"name":"lost_usable","fold":2,"reviewer":2,"algorithm":2,"cota":3,"k3_ai":2,"k3_abstain":false,"k5_ai":2,"k5_abstain":true},
+    {"name":"same_prediction","fold":2,"reviewer":2,"algorithm":2,"cota":2,"k3_ai":2,"k3_abstain":false,"k5_ai":2,"k5_abstain":false},
+    {"name":"different_predictions","fold":3,"reviewer":3,"algorithm":3,"cota":4,"k3_ai":3,"k3_abstain":false,"k5_ai":4,"k5_abstain":false},
+    {"name":"correct_k3_only","fold":3,"reviewer":2,"algorithm":2,"cota":3,"k3_ai":2,"k3_abstain":false,"k5_ai":3,"k5_abstain":false},
+    {"name":"correct_k5_only","fold":4,"reviewer":2,"algorithm":3,"cota":2,"k3_ai":3,"k3_abstain":false,"k5_ai":2,"k5_abstain":false},
+    {"name":"three_both","fold":4,"reviewer":2,"algorithm":2,"cota":2,"k3_ai":2,"k3_abstain":false,"k5_ai":2,"k5_abstain":false},
+    {"name":"three_k3_only","fold":1,"reviewer":2,"algorithm":2,"cota":2,"k3_ai":2,"k3_abstain":false,"k5_ai":3,"k5_abstain":false},
+    {"name":"three_k5_only","fold":2,"reviewer":2,"algorithm":2,"cota":2,"k3_ai":3,"k3_abstain":false,"k5_ai":2,"k5_abstain":false},
+    {"name":"shared_false_accept","fold":3,"reviewer":1,"algorithm":2,"cota":2,"k3_ai":2,"k3_abstain":false,"k5_ai":2,"k5_abstain":false},
+    {"name":"false_k3_only","fold":4,"reviewer":1,"algorithm":2,"cota":2,"k3_ai":2,"k3_abstain":false,"k5_ai":3,"k5_abstain":false},
+    {"name":"false_k5_only","fold":0,"reviewer":1,"algorithm":2,"cota":2,"k3_ai":3,"k3_abstain":false,"k5_ai":2,"k5_abstain":false}
+  ]
+}

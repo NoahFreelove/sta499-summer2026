@@ -311,16 +311,46 @@ def _policy_delta(
     baseline_field, baseline_prediction = POLICY_SPECS[baseline_name]
     accepted = [row for row in rows if row[acceptance_field]]
     baseline = [row for row in rows if row[baseline_field]]
-    additional = [row for row in rows if row[acceptance_field] and not row[baseline_field]]
+    accepted_by_both = [row for row in rows if row[acceptance_field] and row[baseline_field]]
+    policy_only = [row for row in rows if row[acceptance_field] and not row[baseline_field]]
+    baseline_only = [row for row in rows if row[baseline_field] and not row[acceptance_field]]
     policy_accuracy = _accuracy(accepted, prediction_field)
     baseline_accuracy = _accuracy(baseline, baseline_prediction)
     return {
-        "additional_accepted_patients": len(additional),
+        "accepted_by_both_count": len(accepted_by_both),
+        "accepted_only_by_policy_count": len(policy_only),
+        "accepted_only_by_baseline_count": len(baseline_only),
+        "net_accepted_count_difference": len(accepted) - len(baseline),
+        "correct_by_both_count": sum(
+            row[prediction_field] == row["reviewer_lot"]
+            and row[baseline_prediction] == row["reviewer_lot"]
+            for row in accepted_by_both
+        ),
+        "incorrect_by_both_count": sum(
+            row[prediction_field] != row["reviewer_lot"]
+            and row[baseline_prediction] != row["reviewer_lot"]
+            for row in accepted_by_both
+        ),
+        "correct_only_by_policy_count": sum(
+            row[prediction_field] == row["reviewer_lot"] for row in policy_only
+        ),
+        "incorrect_only_by_policy_count": sum(
+            row[prediction_field] != row["reviewer_lot"] for row in policy_only
+        ),
+        "correct_only_by_baseline_count": sum(
+            row[baseline_prediction] == row["reviewer_lot"] for row in baseline_only
+        ),
+        "incorrect_only_by_baseline_count": sum(
+            row[baseline_prediction] != row["reviewer_lot"] for row in baseline_only
+        ),
+        "additional_accepted_patients": len(policy_only),
+        "additional_accepted_patients_deprecated": True,
+        "additional_accepted_patients_deprecated_alias_for": "accepted_only_by_policy_count",
         "additional_correct_accepted_patients": sum(
-            row[prediction_field] == row["reviewer_lot"] for row in additional
+            row[prediction_field] == row["reviewer_lot"] for row in policy_only
         ),
         "additional_incorrect_accepted_patients": sum(
-            row[prediction_field] != row["reviewer_lot"] for row in additional
+            row[prediction_field] != row["reviewer_lot"] for row in policy_only
         ),
         "coverage_difference": round(
             (len(accepted) - len(baseline)) / len(rows), 6

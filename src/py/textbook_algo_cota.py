@@ -45,8 +45,12 @@ Outputs a comparison table to stdout and saves results to lot_results_cota.xlsx.
 
 from __future__ import annotations
 
-import re
 import os
+import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pandas as pd
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -382,7 +386,9 @@ def main() -> None:
         "lot_alg", "alg_err", "cota_err", "flags",
     ]
     out = df[output_cols].copy()
-    out["trt_sequence"] = df["trt_strings"].apply(lambda lines: " | ".join(str(l).strip() for l in lines))
+    out["trt_sequence"] = df["trt_strings"].apply(
+        lambda lines: " | ".join(str(line).strip() for line in lines)
+    )
     out = out[output_cols + ["trt_sequence"]]
     out["flags"] = out["flags"].apply(lambda f: ", ".join(f) if f else "")
     out.to_excel("lot_results_cota.xlsx", index=False)

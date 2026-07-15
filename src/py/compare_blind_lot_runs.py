@@ -97,7 +97,7 @@ def comparison_rows(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         metrics = report["metrics"]
         policies = metrics["routing_policy_analysis"]
         row: dict[str, Any] = {
-            "run_dir": str(run["run_dir"]),
+            "run_id": run["metadata"].get("run_id", run["run_dir"].name),
             "retrieval_k": run["metadata"]["retrieval_k"],
             "eligible_patients": metrics["eligible_patients"],
             "generated_total_accuracy": metrics["generated_total"]["exact_accuracy"]["rate"],
@@ -128,7 +128,7 @@ def comparison_rows(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def build_comparison(runs: list[dict[str, Any]]) -> dict[str, Any]:
     reference = runs[0]
     return {
-        "schema_version": "1.0.0",
+        "schema_version": "1.1.0",
         "report_scope": "aggregate_only",
         "comparison": "order-only blind AI routing policies by retrieval k",
         "primary_policy": "three_way_agreement",

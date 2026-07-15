@@ -438,6 +438,21 @@ class AggregateEvaluationTests(unittest.TestCase):
         self.assertEqual(policy["incorrect_accepted_count"], 1)
         self.assertEqual(policy["false_accept_rate_among_accepted"]["rate"], 1.0)
 
+    def test_policy_delta_has_unambiguous_overlap_and_net_fields(self) -> None:
+        metrics = evaluate_joined([
+            self.row(2, 2, 2, 2, False, 1),
+            self.row(2, 2, 3, 2, False, 2),
+            self.row(2, 2, 2, 3, False, 3),
+        ], bootstrap_replicates=5)
+        delta = metrics["routing_policy_analysis"]["algorithm_ai_agreement"][
+            "comparisons"
+        ]["versus_three_way_agreement"]
+        self.assertEqual(delta["accepted_by_both_count"], 1)
+        self.assertEqual(delta["accepted_only_by_policy_count"], 1)
+        self.assertEqual(delta["accepted_only_by_baseline_count"], 0)
+        self.assertEqual(delta["net_accepted_count_difference"], 1)
+        self.assertTrue(delta["additional_accepted_patients_deprecated"])
+
     def test_algorithm_ai_agree_cota_dissent_correct(self) -> None:
         metrics = evaluate_joined([self.row(4, 5, 4, 5, False)], bootstrap_replicates=10)
         policies = metrics["routing_policy_analysis"]
@@ -505,6 +520,8 @@ class AggregateEvaluationTests(unittest.TestCase):
             )
 
     def test_full_k5_policy_regression_and_exhaustive_patterns(self) -> None:
+        if os.environ.get("RUN_RESTRICTED_REGRESSION_TESTS") != "1":
+            self.skipTest("set RUN_RESTRICTED_REGRESSION_TESTS=1 for local frozen artifacts")
         path = ROOT / "artifacts/benchmarks/runs/20260713T235819111155Z-22d38bbc4e/restricted/joined_evaluation.jsonl"
         rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
         metrics = evaluate_joined(rows, bootstrap_replicates=20)

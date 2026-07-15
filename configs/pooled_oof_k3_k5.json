@@ -1,0 +1,32 @@
+{
+  "schema_version": "blind-lot-pooling-manifest-1.0.0",
+  "pool_id": "frozen-oof-k3-k5",
+  "expected_folds": [0, 1, 2, 3, 4],
+  "expected_patient_count": 136,
+  "provider": "openai",
+  "model": "gpt-5.6",
+  "reasoning_effort": "medium",
+  "temperature": null,
+  "prompt_version": "order-only-mm-lot-prompt-1.0.0",
+  "knowledge_version": "order-only-mm-lot-1.0.0",
+  "evaluation_version": "blind-lot-evaluation-1.2.0",
+  "bootstrap_seed": 4992026,
+  "bootstrap_replicates": 2000,
+  "source_runs": [
+    {"retrieval_k": 3, "fold": 0, "run_id": "20260713T234312607559Z-56d9a9111e"},
+    {"retrieval_k": 3, "fold": 1, "run_id": "20260714T132346026566Z-e92350fc1a"},
+    {"retrieval_k": 3, "fold": 2, "run_id": "20260714T004124015895Z-88d60c844a"},
+    {"retrieval_k": 3, "fold": 3, "run_id": "20260714T133225606525Z-ad23a01c8d"},
+    {"retrieval_k": 3, "fold": 4, "run_id": "20260714T004731052958Z-874fcb4bc2"},
+    {"retrieval_k": 5, "fold": 0, "run_id": "20260713T235819111155Z-22d38bbc4e"},
+    {"retrieval_k": 5, "fold": 1, "run_id": "20260714T132809535364Z-6e66581a7a"},
+    {"retrieval_k": 5, "fold": 2, "run_id": "20260714T004420592586Z-162f23e8df"},
+    {"retrieval_k": 5, "fold": 3, "run_id": "20260714T133658803455Z-029de6dbb3"},
+    {"retrieval_k": 5, "fold": 4, "run_id": "20260714T005106144777Z-73d88e4b99"}
+  ],
+  "frozen_regression": {
+    "algorithm_cota": {"accepted": 76, "correct": 63, "incorrect": 13},
+    "3": {"generated_correct": 45, "usable": 38, "usable_correct": 18, "algorithm_ai": [16, 14, 2], "cota_ai": [15, 12, 3], "three_way": [10, 9, 1]},
+    "5": {"generated_correct": 48, "usable": 47, "usable_correct": 21, "algorithm_ai": [21, 16, 5], "cota_ai": [16, 14, 2], "three_way": [11, 10, 1]}
+  }
+}

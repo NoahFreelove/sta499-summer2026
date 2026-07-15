@@ -39,7 +39,7 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
 def _public_report(metadata: dict[str, Any], metrics: dict[str, Any]) -> dict[str, Any]:
     run_id = metadata["run_id"]
     report = {
-        "schema_version": "1.2.0",
+        "schema_version": "1.3.0",
         "report_scope": "aggregate_only",
         "benchmark_mode": "order-only blind AI benchmark",
         "ground_truth": "reviewer consensus",

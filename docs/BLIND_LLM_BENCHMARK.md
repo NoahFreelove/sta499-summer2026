@@ -154,3 +154,62 @@ python3 src/py/compare_blind_lot_runs.py \
 - Exact duplicate exclusion reduces direct trajectory leakage, but broader clinical similarity is expected and is the purpose of retrieval.
 - Confidence intervals quantify patient resampling uncertainty, not model/provider nondeterminism.
 - A five-case smoke test validates plumbing, not clinical performance. Full conclusions require the same frozen configuration across all five held-out folds.
+
+## Frozen pooled out-of-fold k=3 versus k=5 analysis
+
+`configs/pooled_oof_k3_k5.json` is the versioned source of truth for the ten frozen
+fold runs. It names every run explicitly; pooling never discovers or selects a newer
+run. The following commands only read completed metadata, predictions, retrieval
+diagnostics, and joined evaluation records. They do not initialize a provider, read a
+model cache, execute retrieval, issue a model request, or modify saved predictions.
+
+```bash
+env -u OPENAI_API_KEY python3 src/py/pool_blind_lot_runs.py \
+  --manifest configs/pooled_oof_k3_k5.json \
+  --runs-root artifacts/benchmarks/runs \
+  --output artifacts/benchmarks/pooled/frozen-oof
+
+env -u OPENAI_API_KEY python3 src/py/compare_blind_lot_predictions.py \
+  --k3-run artifacts/benchmarks/pooled/frozen-oof/k3-all-folds \
+  --k5-run artifacts/benchmarks/pooled/frozen-oof/k5-all-folds \
+  --output artifacts/benchmarks/comparisons/frozen-oof-k3-v-k5
+```
+
+Pooling validates all expected `(retrieval_k, fold)` pairs, per-fold row counts and
+fold labels, cohort identity, frozen configuration, and byte hashes for source
+metadata, predictions, retrieval diagnostics, and joined rows. Fold-0 source runs
+predate evaluation 1.2.0; their saved predictions are reaggregated through the current
+1.2.0 evaluator, and both original and effective versions are preserved in provenance.
+The frozen regression assertions stop publication unless the following values recur:
+
+- Algorithm+COTA: 76/136 accepted, 63 correct and 13 incorrect.
+- k=3: generated total 45/136 correct; 38/136 usable and 18/38 correct;
+  algorithm+AI 14/16 correct; COTA+AI 12/15; three-way 9/10.
+- k=5: generated total 48/136 correct; 47/136 usable and 21/47 correct;
+  algorithm+AI 16/21 correct; COTA+AI 14/16; three-way 10/11.
+
+Patient-level joined, paired, provenance, and diagnostic files are restricted.
+Public JSON and CSV files contain aggregates only and are checked for identifier
+markers and absolute local paths. Fold 0 was development-influenced. Pairwise policies
+remain exploratory, and small accepted subsets must not be overinterpreted. Strict
+three-way agreement had one false acceptance under both retrieval settings; it did not
+have perfect precision.
+
+Restricted error inspection uses saved responses and diagnostics only:
+
+```bash
+python3 src/py/inspect_blind_lot_errors.py \
+  --run-dir artifacts/benchmarks/pooled/frozen-oof/k3-all-folds \
+  --compare-run-dir artifacts/benchmarks/pooled/frozen-oof/k5-all-folds \
+  --policy three_way_agreement --incorrect-only \
+  --output artifacts/benchmarks/diagnostics/three-way-false-accepts
+```
+
+The default test suite uses committed synthetic fixtures and needs no ignored
+artifacts. Local restricted regression tests are opt-in:
+
+```bash
+env -u OPENAI_API_KEY python3 -m unittest discover -s tests -v
+RUN_RESTRICTED_REGRESSION_TESTS=1 \
+  env -u OPENAI_API_KEY python3 -m unittest discover -s tests -v
+```
