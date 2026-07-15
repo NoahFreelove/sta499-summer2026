@@ -1,1 +1,7 @@
 .DS_Store
+.env
+/Agentic_OpenAI_LoT_Adj/data
+/Agentic_OpenAI_LoT_Adj/eval_output
+/Agentic_OpenAI_LoT_Adj/output
+/Agentic_OpenAI_LoT_Adj/.gitignore
+/Agentic_OpenAI_LoT_Adj/.env

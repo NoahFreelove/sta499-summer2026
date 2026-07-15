@@ -1,0 +1,6 @@
+openai-agents
+pandas
+pydantic>=2
+python-dotenv
+openpyxl
+scikit-learn
