@@ -30,6 +30,7 @@ from typing import Iterable
 
 import pandas as pd
 
+import os
 
 DEFAULT_CLASS_ORDER = [
     "Alkylating agents",
@@ -225,11 +226,13 @@ def reconstruct_family(drugs: list[str], class_order: list[str]) -> tuple[str, l
 
 #------------------------------------------------------------------------------------------------------------
 
-raw_path = "LoT Adjudication Datasets.xlsx"
+
+# raw_path = "LoT Adjudication Datasets.xlsx"
+# fiona_path = "COTA misclassification.xlsx"
+raw_path = ".." + os.sep + "data" + os.sep + "LoT Adjudication Datasets.xlsx"
 fiona_path = "COTA misclassification.xlsx"
-output_path = Path("misclass_dir/Output/COTA_family_reconstructed.xlsx") #added this
-# the directory is still incorrect
-# change the output name once confirming the path is correct
+output_path = Path("Output/COTA_family_reconstructed.xlsx") #added this
+# change the output file name once confirming the path is correct
 #originally: output_path = Path("MisclassificationInBestCases/Output/COTA_family_reconstructed.xlsx")
 output_path.parent.mkdir(parents=True, exist_ok=True)
 
