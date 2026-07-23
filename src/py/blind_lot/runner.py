@@ -31,10 +31,9 @@ from .evaluation import (
 from .models import BlindModelInput
 from .prompting import PromptBundle, build_prompt, load_knowledge, load_prompt_template
 from .providers import (
-    MockProvider,
-    OpenAIResponsesProvider,
     ProviderConfig,
     complete_with_retries,
+    create_provider,
 )
 from .retrieval import (
     LocalRetriever,
@@ -62,6 +61,7 @@ class RunConfig:
     use_cache: bool
     bootstrap_seed: int = BOOTSTRAP_SEED
     bootstrap_replicates: int = BOOTSTRAP_REPLICATES
+    retrieval_training_folds: tuple[int, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -185,6 +185,7 @@ def _run_id(config: RunConfig, prompt_version: str, knowledge_version: str) -> s
         "reasoning_effort": config.reasoning_effort,
         "temperature": config.temperature,
         "retrieval_k": config.retrieval_k,
+        "retrieval_training_folds": config.retrieval_training_folds,
         "prompt_version": prompt_version,
         "knowledge_version": knowledge_version,
     })[:10]
@@ -212,6 +213,11 @@ def _metadata(
         "prompt_version": prompt_version,
         "knowledge_version": knowledge_version,
         "retrieval_k": config.retrieval_k,
+        "retrieval_training_folds": (
+            list(config.retrieval_training_folds)
+            if config.retrieval_training_folds is not None
+            else None
+        ),
         "folds": list(config.folds),
         "limit": config.limit,
         "concurrency": config.concurrency,
@@ -269,6 +275,14 @@ def run(config: RunConfig) -> dict[str, Any]:
     targets, candidates, input_hashes = _load_inputs(config)
     if not targets:
         raise ValueError("no eligible targets selected")
+    if config.retrieval_training_folds is not None:
+        invalid_folds = set(config.retrieval_training_folds) - set(range(5))
+        if invalid_folds or not config.retrieval_training_folds:
+            raise ValueError("retrieval training folds must be a non-empty subset of 0..4")
+        candidates = [
+            candidate for candidate in candidates
+            if candidate.fold in config.retrieval_training_folds
+        ]
     retriever = LocalRetriever(candidates)
     prepared = {target.case_key: _prepare(target, retriever, config.retrieval_k) for target in targets}
 
@@ -304,6 +318,11 @@ def run(config: RunConfig) -> dict[str, Any]:
             "case_key": target.case_key,
             "fold": target.fold,
             "retrieval_k": config.retrieval_k,
+            "retrieval_training_folds": (
+                list(config.retrieval_training_folds)
+                if config.retrieval_training_folds is not None
+                else None
+            ),
             "prompt_version": bundle.prompt_version,
             "knowledge_version": bundle.knowledge_version,
             "hits": debug_hits,
@@ -333,6 +352,11 @@ def run(config: RunConfig) -> dict[str, Any]:
             "selected_target_count": len(targets),
             "validated_blind_input_count": len(candidates),
             "retrieval_k": config.retrieval_k,
+            "retrieval_training_folds": (
+                list(config.retrieval_training_folds)
+                if config.retrieval_training_folds is not None
+                else None
+            ),
             "leakage_checks": {
                 "blind_schema_valid": True,
                 "target_prompt_allowlist_valid": True,
@@ -352,12 +376,13 @@ def run(config: RunConfig) -> dict[str, Any]:
         request_timeout=config.request_timeout,
         retry_count=config.retry_count,
     )
-    provider = MockProvider(provider_config) if config.provider == "mock" else OpenAIResponsesProvider(provider_config)
+    provider = create_provider(config.provider, provider_config)
     cache = DiskCache(config.output_dir / "cache")
 
     def infer(target: Target) -> dict[str, Any]:
         bundle, hits = prepared[target.case_key]
         key = cache_key(
+            provider=config.provider,
             model=config.model,
             reasoning_effort=config.reasoning_effort,
             temperature=config.temperature,
@@ -444,6 +469,11 @@ def run(config: RunConfig) -> dict[str, Any]:
             "prompt_version": prompt_version,
             "knowledge_version": knowledge_version,
             "retrieval_k": config.retrieval_k,
+            "retrieval_training_folds": (
+                list(config.retrieval_training_folds)
+                if config.retrieval_training_folds is not None
+                else None
+            ),
             "folds": list(config.folds),
             "fold_count_evaluated": len(config.folds),
             "limited_run": config.limit is not None,

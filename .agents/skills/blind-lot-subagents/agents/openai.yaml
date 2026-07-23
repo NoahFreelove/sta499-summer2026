@@ -1,0 +1,4 @@
+interface:
+  display_name: "Blind LOT Model Benchmark"
+  short_description: "Benchmark LOT models with blinded subagents"
+  default_prompt: "Use $blind-lot-subagents to run a benchmark-grade development or locked final LOT model comparison with sanitized worker bundles."

@@ -22,6 +22,7 @@ ARTIFACTS = {
 FROZEN_FIELDS = (
     "provider", "model", "reasoning_effort", "temperature", "prompt_version",
     "knowledge_version", "input_artifact_sha256", "random_seed", "bootstrap_replicates",
+    "retrieval_training_folds", "run_purpose", "repeat_index",
 )
 
 

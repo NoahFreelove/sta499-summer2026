@@ -19,7 +19,98 @@ python3 -m pip install -r requirements.txt
 python3 src/py/run_blind_lot_benchmark.py --help
 ```
 
-Every invocation creates a new `runs/<run-id>` directory; prior experiments are never overwritten. Cache reads are opt-in with `--use-cache`, while validated new responses are always cached for later resumption. OpenAI access uses `OPENAI_API_KEY`; no key is stored in code or artifacts, and Responses API storage is disabled. `--temperature` is optional and should be omitted for models that do not support it.
+Every invocation creates a new `runs/<run-id>` directory; prior experiments are never overwritten. Cache reads are opt-in with `--use-cache`, while validated new responses are always cached for later resumption. The benchmark automatically loads credentials from `.env` in the project root; values explicitly exported in the shell take precedence. Copy `.env.example` to `.env` and fill in `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and either `KIMI_API_KEY` or the official `MOONSHOT_API_KEY` name for Kimi. `.env` is Git-ignored, and no key is stored in code or artifacts. OpenAI Responses API storage is disabled. `--temperature` and `--reasoning-effort` are optional and should be omitted when the selected model does not support them.
+
+The real-model providers are selected with `--provider openai`, `--provider claude`, or `--provider kimi`. For example:
+
+```bash
+python3 src/py/run_blind_lot_benchmark.py \
+  --fold 0 --limit 5 --retrieval-k 0 \
+  --provider claude --model <claude-model>
+
+python3 src/py/run_blind_lot_benchmark.py \
+  --fold 0 --limit 5 --retrieval-k 0 \
+  --provider kimi --model <kimi-model>
+```
+
+## Coding-agent subagent handoff
+
+The repository also supports a two-phase, file-based handoff for Codex or Claude
+Code subagents. The Python process makes no model-provider API requests in this
+mode. The signed-in coding-agent client still uses hosted inference and its own
+account limits.
+
+Prepare immutable blind prompt shards:
+
+```bash
+python3 src/py/prepare_blind_lot_agent_run.py \
+  --fold 0 --limit 5 --retrieval-k 0 --shards 2 \
+  --orchestrator codex --model-label account-default
+```
+
+Invoke the repository skill in a Codex chat with `$blind-lot-subagents`, or the
+same-named skill in Claude Code. After the workers create every declared output
+shard, validate and evaluate the frozen predictions:
+
+```bash
+python3 src/py/finalize_blind_lot_agent_run.py \
+  --run-dir artifacts/benchmarks/runs/<run-id>
+```
+
+Prompt packets are hashed, shard coverage must be exact, retrieved-example
+citations are allowlisted, and strict response validation occurs before reviewer
+or COTA answers are loaded. Coding-agent runs use the distinct provider labels
+`codex-subagents` and `claude-code-subagents`; they are not API-identical
+replications of direct-provider runs.
+
+### Benchmark-grade model selection
+
+Use fold 0 for inexpensive screening, folds 0–2 for development, and folds 3–4
+for locked final evaluation. Screening eliminates weak ideas but is never
+reported as final performance.
+Restrict retrieval candidates to folds 0–2 in both phases. This permits prompt,
+model, reasoning, and retrieval tuning on development cases without using final
+outcomes for selection.
+
+Development and final subagent runs require an exact model label and a sanitized
+worker bundle outside the repository. The bundle includes only blind packets,
+schemas, a pinned worker configuration, and a bundle-local skill. It contains no
+reviewer/COTA evaluation records.
+
+Example development preparation:
+
+```bash
+python3 src/py/prepare_blind_lot_agent_run.py \
+  --folds 0,1,2 --retrieval-training-folds 0,1,2 \
+  --run-purpose development --repeat-index 1 \
+  --retrieval-k 3 --shards 4 --orchestrator codex \
+  --model-label <exact-model> --reasoning-effort <exact-effort> \
+  --worker-bundle-dir /tmp/blind-lot-<condition>-r1
+```
+
+Start a separate coding-agent chat rooted at the printed bundle directory and
+invoke `$blind-lot-bundle`. Then import, validate, and evaluate:
+
+```bash
+python3 src/py/finalize_blind_lot_agent_run.py \
+  --run-dir <run-directory> \
+  --worker-bundle-dir /tmp/blind-lot-<condition>-r1
+```
+
+Repeat each development condition at least twice when account limits permit.
+Build the development leaderboard with:
+
+```bash
+python3 src/py/compare_blind_lot_model_runs.py \
+  --phase development --expected-repeats <n> \
+  --run-dir <run-1> --run-dir <run-2> \
+  --output artifacts/benchmarks/comparisons/<development-comparison>
+```
+
+Selection uses mean generated-total exact accuracy, then lower MAE and higher
+within-one accuracy as tie-breakers. Freeze the selected condition and run it on
+folds 3–4 with `--run-purpose final`, no patient limit, and three repeats when
+feasible. A final-phase leaderboard is report-only and must not trigger retuning.
 
 ## Reproducible commands
 

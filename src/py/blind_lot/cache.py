@@ -17,6 +17,7 @@ def canonical_hash(value: Any) -> str:
 
 def cache_key(
     *,
+    provider: str,
     model: str,
     reasoning_effort: str | None,
     prompt_version: str,
@@ -27,6 +28,7 @@ def cache_key(
     temperature: float | None = None,
 ) -> str:
     return canonical_hash({
+        "provider": provider,
         "model": model,
         "reasoning_effort": reasoning_effort,
         "temperature": temperature,

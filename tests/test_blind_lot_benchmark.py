@@ -24,6 +24,8 @@ from blind_lot.evaluation import (  # noqa: E402
 from blind_lot.models import BlindLOTResponse, validate_model_response  # noqa: E402
 from blind_lot.prompting import build_prompt  # noqa: E402
 from blind_lot.providers import (  # noqa: E402
+    AnthropicMessagesProvider,
+    KimiChatProvider,
     OpenAIResponsesProvider,
     ProviderConfig,
     RetriableProviderError,
@@ -36,7 +38,11 @@ from blind_lot.retrieval import (  # noqa: E402
     assert_retrieval_safe,
 )
 from blind_lot.runner import _public_guard  # noqa: E402
-from run_blind_lot_benchmark import format_metric  # noqa: E402
+from run_blind_lot_benchmark import (  # noqa: E402
+    format_metric,
+    load_project_env,
+    parse_folds,
+)
 
 
 def case_id(number: int) -> str:
@@ -114,6 +120,12 @@ class ResponseSchemaTests(unittest.TestCase):
         value["abstained"] = False
         with self.assertRaises(ValueError):
             validate_model_response(value, 0)
+
+    def test_parse_folds_rejects_duplicates_and_out_of_range_values(self) -> None:
+        self.assertEqual(parse_folds("0,2,4"), (0, 2, 4))
+        for value in ("", "0,0", "0,5", "fold-1"):
+            with self.assertRaises(Exception):
+                parse_folds(value)
 
 
 class RetrievalTests(unittest.TestCase):
@@ -207,6 +219,20 @@ class PromptLeakageTests(unittest.TestCase):
 
 
 class ProviderTests(unittest.TestCase):
+    def test_project_env_loads_keys_without_overriding_shell(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".env").write_text(
+                "ANTHROPIC_API_KEY=from-file\nKIMI_API_KEY=kimi-from-file\n",
+                encoding="utf-8",
+            )
+            with patch.dict(
+                os.environ, {"ANTHROPIC_API_KEY": "from-shell"}, clear=True
+            ):
+                self.assertTrue(load_project_env(root))
+                self.assertEqual(os.environ["ANTHROPIC_API_KEY"], "from-shell")
+                self.assertEqual(os.environ["KIMI_API_KEY"], "kimi-from-file")
+
     def test_openai_request_separates_stable_prefix_and_disables_storage(self) -> None:
         class FakeResponse:
             def __enter__(self):
@@ -237,6 +263,115 @@ class ProviderTests(unittest.TestCase):
         self.assertFalse(captured["body"]["store"])
         self.assertEqual(captured["body"]["text"]["format"]["type"], "json_schema")
         self.assertEqual(captured["timeout"], 7)
+
+    def test_anthropic_request_uses_structured_messages_api(self) -> None:
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return None
+
+            def read(self) -> bytes:
+                return json.dumps({
+                    "content": [{"type": "text", "text": json.dumps(response())}]
+                }).encode()
+
+        captured = {}
+
+        def fake_urlopen(request, timeout):
+            captured["body"] = json.loads(request.data)
+            captured["headers"] = dict(request.header_items())
+            return FakeResponse()
+
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "synthetic-key"}), patch(
+            "blind_lot.providers.urllib.request.urlopen", side_effect=fake_urlopen
+        ):
+            provider = AnthropicMessagesProvider(ProviderConfig(
+                model="claude-synthetic", reasoning_effort="medium", temperature=0.2
+            ))
+            result = provider.complete("stable-prefix", "patient-only")
+        self.assertEqual(json.loads(result), response())
+        self.assertEqual(captured["body"]["system"], "stable-prefix")
+        self.assertEqual(captured["body"]["messages"][0]["content"], "patient-only")
+        self.assertEqual(captured["body"]["output_config"]["effort"], "medium")
+        self.assertEqual(
+            captured["body"]["output_config"]["format"]["type"], "json_schema"
+        )
+        anthropic_schema = captured["body"]["output_config"]["format"]["schema"]
+        self.assertNotIn("minimum", json.dumps(anthropic_schema))
+        self.assertEqual(captured["body"]["max_tokens"], 16_384)
+        self.assertEqual(captured["body"]["temperature"], 0.2)
+        self.assertEqual(captured["headers"]["X-api-key"], "synthetic-key")
+
+    def test_anthropic_token_exhaustion_is_not_retried(self) -> None:
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return None
+
+            def read(self) -> bytes:
+                return json.dumps({
+                    "content": [{"type": "thinking", "thinking": "synthetic"}],
+                    "stop_reason": "max_tokens",
+                }).encode()
+
+        calls = 0
+
+        def fake_urlopen(request, timeout):
+            nonlocal calls
+            calls += 1
+            return FakeResponse()
+
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "synthetic-key"}), patch(
+            "blind_lot.providers.urllib.request.urlopen", side_effect=fake_urlopen
+        ):
+            provider = AnthropicMessagesProvider(ProviderConfig(model="claude-synthetic"))
+            with self.assertRaisesRegex(RuntimeError, "stop_reason='max_tokens'"):
+                complete_with_retries(
+                    provider,
+                    "stable-prefix",
+                    "patient-only",
+                    regimen_event_count=2,
+                    retry_count=2,
+                )
+        self.assertEqual(calls, 1)
+
+    def test_kimi_request_uses_structured_chat_completions(self) -> None:
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return None
+
+            def read(self) -> bytes:
+                return json.dumps({
+                    "choices": [{"message": {"content": json.dumps(response())}}]
+                }).encode()
+
+        captured = {}
+
+        def fake_urlopen(request, timeout):
+            captured["body"] = json.loads(request.data)
+            captured["headers"] = dict(request.header_items())
+            return FakeResponse()
+
+        with patch.dict(os.environ, {"KIMI_API_KEY": "synthetic-key"}), patch(
+            "blind_lot.providers.urllib.request.urlopen", side_effect=fake_urlopen
+        ):
+            provider = KimiChatProvider(ProviderConfig(
+                model="kimi-synthetic", reasoning_effort="high"
+            ))
+            result = provider.complete("stable-prefix", "patient-only")
+        self.assertEqual(json.loads(result), response())
+        self.assertEqual(captured["body"]["messages"][0]["role"], "system")
+        self.assertEqual(captured["body"]["messages"][1]["content"], "patient-only")
+        self.assertEqual(captured["body"]["reasoning_effort"], "high")
+        self.assertEqual(captured["body"]["response_format"]["type"], "json_schema")
+        self.assertEqual(captured["headers"]["Authorization"], "Bearer synthetic-key")
 
     def test_malformed_output_is_retried(self) -> None:
         class Provider:
@@ -270,7 +405,8 @@ class ProviderTests(unittest.TestCase):
 class CacheTests(unittest.TestCase):
     def test_cache_key_stability_and_current_validation(self) -> None:
         kwargs = {
-            "model": "model", "reasoning_effort": "low", "temperature": None,
+            "provider": "openai", "model": "model",
+            "reasoning_effort": "low", "temperature": None,
             "prompt_version": "p1", "knowledge_version": "k1", "retrieval_k": 3,
             "retrieved_example_ids": [case_id(2)],
             "blind_patient_input_hash": canonical_hash(blind([["a"], ["b"]])),

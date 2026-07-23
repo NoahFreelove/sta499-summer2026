@@ -1,4 +1,4 @@
-"""Provider-neutral inference interface with mock and OpenAI Responses implementations."""
+"""Provider-neutral inference clients for the supported model APIs."""
 
 from __future__ import annotations
 
@@ -19,6 +19,34 @@ from .retrieval import UNKNOWN_MARKERS, STEROIDS
 
 class RetriableProviderError(RuntimeError):
     pass
+
+
+def _anthropic_response_json_schema() -> dict[str, object]:
+    """Remove JSON Schema constraints unsupported by Anthropic structured outputs."""
+    unsupported = {
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "multipleOf",
+        "minLength",
+        "maxLength",
+        "minItems",
+        "maxItems",
+    }
+
+    def sanitize(value: object) -> object:
+        if isinstance(value, dict):
+            return {
+                key: sanitize(item)
+                for key, item in value.items()
+                if key not in unsupported
+            }
+        if isinstance(value, list):
+            return [sanitize(item) for item in value]
+        return value
+
+    return sanitize(response_json_schema())  # type: ignore[return-value]
 
 
 class Provider(Protocol):
@@ -135,6 +163,160 @@ class OpenAIResponsesProvider:
         except (urllib.error.URLError, TimeoutError, socket.timeout) as error:
             raise RetriableProviderError(f"OpenAI transport failure: {error}") from error
         return _extract_output_text(payload)
+
+
+class AnthropicMessagesProvider:
+    """Minimal Anthropic Messages API client using ANTHROPIC_API_KEY."""
+
+    endpoint = "https://api.anthropic.com/v1/messages"
+    max_tokens = 16_384
+
+    def __init__(self, config: ProviderConfig) -> None:
+        self.config = config
+        self.api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not self.api_key:
+            raise ValueError("ANTHROPIC_API_KEY is required for --provider claude")
+
+    def complete(self, stable_prefix: str, patient_prompt: str) -> str:
+        output_config: dict[str, object] = {
+            "format": {
+                "type": "json_schema",
+                "schema": _anthropic_response_json_schema(),
+            }
+        }
+        if self.config.reasoning_effort:
+            output_config["effort"] = self.config.reasoning_effort
+        request_body: dict[str, object] = {
+            "model": self.config.model,
+            "max_tokens": self.max_tokens,
+            "system": stable_prefix,
+            "messages": [{"role": "user", "content": patient_prompt}],
+            "output_config": output_config,
+        }
+        if self.config.temperature is not None:
+            request_body["temperature"] = self.config.temperature
+        payload = _post_json(
+            endpoint=self.endpoint,
+            request_body=request_body,
+            headers={
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
+            },
+            timeout=self.config.request_timeout,
+            provider_name="Anthropic",
+        )
+        texts = [
+            str(block.get("text", ""))
+            for block in payload.get("content", [])  # type: ignore[union-attr]
+            if isinstance(block, dict) and block.get("type") == "text"
+        ]
+        if not texts:
+            content_types = [
+                str(block.get("type"))
+                for block in payload.get("content", [])  # type: ignore[union-attr]
+                if isinstance(block, dict)
+            ]
+            raise RuntimeError(
+                "Anthropic response did not contain output text; "
+                f"stop_reason={payload.get('stop_reason')!r}, "
+                f"content_types={content_types!r}. This response will not be retried."
+            )
+        return "".join(texts)
+
+
+class KimiChatProvider:
+    """Minimal Kimi chat-completions client using a Kimi/Moonshot API key."""
+
+    endpoint = "https://api.moonshot.ai/v1/chat/completions"
+
+    def __init__(self, config: ProviderConfig) -> None:
+        self.config = config
+        self.api_key = os.environ.get("KIMI_API_KEY") or os.environ.get("MOONSHOT_API_KEY")
+        if not self.api_key:
+            raise ValueError(
+                "KIMI_API_KEY or MOONSHOT_API_KEY is required for --provider kimi"
+            )
+
+    def complete(self, stable_prefix: str, patient_prompt: str) -> str:
+        request_body: dict[str, object] = {
+            "model": self.config.model,
+            "messages": [
+                {"role": "system", "content": stable_prefix},
+                {"role": "user", "content": patient_prompt},
+            ],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "blind_lot_response",
+                    "strict": True,
+                    "schema": response_json_schema(),
+                },
+            },
+        }
+        if self.config.reasoning_effort:
+            request_body["reasoning_effort"] = self.config.reasoning_effort
+        if self.config.temperature is not None:
+            request_body["temperature"] = self.config.temperature
+        payload = _post_json(
+            endpoint=self.endpoint,
+            request_body=request_body,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=self.config.request_timeout,
+            provider_name="Kimi",
+        )
+        try:
+            content = payload["choices"][0]["message"]["content"]  # type: ignore[index]
+        except (KeyError, IndexError, TypeError):
+            content = None
+        if not isinstance(content, str) or not content:
+            raise RetriableProviderError("Kimi response did not contain output text")
+        return content
+
+
+def create_provider(name: str, config: ProviderConfig) -> Provider:
+    """Build a configured provider without silently falling back."""
+    providers = {
+        "mock": MockProvider,
+        "openai": OpenAIResponsesProvider,
+        "claude": AnthropicMessagesProvider,
+        "kimi": KimiChatProvider,
+    }
+    try:
+        provider_class = providers[name]
+    except KeyError as error:
+        raise ValueError(f"unsupported provider: {name}") from error
+    return provider_class(config)
+
+
+def _post_json(
+    *,
+    endpoint: str,
+    request_body: dict[str, object],
+    headers: dict[str, str],
+    timeout: float,
+    provider_name: str,
+) -> dict[str, object]:
+    request = urllib.request.Request(
+        endpoint,
+        data=json.dumps(request_body).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        body = error.read().decode("utf-8", errors="replace")
+        message = f"{provider_name} HTTP {error.code}: {body[:500]}"
+        if error.code == 429 or 500 <= error.code < 600:
+            raise RetriableProviderError(message) from error
+        raise RuntimeError(message) from error
+    except (urllib.error.URLError, TimeoutError, socket.timeout) as error:
+        raise RetriableProviderError(f"{provider_name} transport failure: {error}") from error
 
 
 def _extract_output_text(payload: dict[str, object]) -> str:

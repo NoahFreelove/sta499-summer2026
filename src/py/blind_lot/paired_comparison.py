@@ -18,7 +18,8 @@ from .reaggregation import REAGGREGATED_JOINED_NAME
 COMPATIBLE_FIELDS = (
     "provider", "model", "reasoning_effort", "temperature", "prompt_version",
     "knowledge_version", "input_artifact_sha256", "random_seed", "bootstrap_replicates",
-    "evaluation_version", "folds",
+    "evaluation_version", "folds", "retrieval_training_folds", "run_purpose",
+    "repeat_index",
 )
 POLICIES = {
     "algorithm_ai": ("accepted_by_algorithm_ai", "algorithm_lot"),

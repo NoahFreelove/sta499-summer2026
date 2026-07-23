@@ -14,7 +14,8 @@ from blind_lot.reaggregation import REAGGREGATED_AGGREGATE_NAME, REAGGREGATED_JO
 
 
 FROZEN_METADATA_FIELDS = (
-    "folds", "model", "reasoning_effort", "prompt_version", "knowledge_version",
+    "folds", "retrieval_training_folds", "run_purpose", "repeat_index",
+    "model", "reasoning_effort", "prompt_version", "knowledge_version",
 )
 
 
