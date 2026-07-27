@@ -1,4 +1,6 @@
 """
+Updated version of Ana's script color_code_misclassification_patterns.py with updated rules.
+
 Color-code COTA misclassified rows by misclassification pattern based on the MM Line of Therapy (LOT) Rule Engine Specification.
 
 Uses the rule-based algorithm from the specification document to determine if transitions should be merged (same LOT) or split (new LOT).
