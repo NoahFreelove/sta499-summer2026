@@ -21,9 +21,20 @@ from datetime import datetime, timedelta
 # Paths
 # -----------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
-INPUT_PATH = BASE_DIR / "Output" / "COTA_misclassified_rows_UPD_newrules.xlsx"
+# Written by preprocessing_tester.py. The legacy COTA_preprocessing_newrules.py
+# workbook is still accepted as a fallback (see sheet resolution below).
+INPUT_PATH = BASE_DIR / "Output" / "COTA_cleaned.xlsx"
+LEGACY_INPUT_PATH = BASE_DIR / "Output" / "COTA_misclassified_rows_UPD_newrules.xlsx"
 OUTPUT_PATH = BASE_DIR / "Output" / "COTA_misclassified_patterns_colored_newrules.xlsx"
+LOT_COUNTS_PATH = BASE_DIR / "Output" / "lot_counts_with_rules.xlsx"
 OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+# Statuses that count as a misclassification, matching the filter that
+# COTA_preprocessing_newrules.py used to build its "Misclassified_Rows" sheet.
+MISCLASSIFIED_STATUSES = (
+    "candidate_misclassification_cota_over_split",
+    "candidate_misclassification_cota_under_split",
+)
 
 # -----------------------------------------------------------------------------
 # Colors / flags
@@ -988,18 +999,48 @@ def get_lot_count_for_regimen(df_all_patients):
 # -----------------------------------------------------------------------------
 # Load data
 # -----------------------------------------------------------------------------
-xl = pd.ExcelFile(INPUT_PATH)
-if "Misclassified_Rows" not in xl.sheet_names:
-    raise ValueError("Input workbook must contain a 'Misclassified_Rows' sheet.")
+input_path = INPUT_PATH if INPUT_PATH.exists() else LEGACY_INPUT_PATH
+if not input_path.exists():
+    raise FileNotFoundError(
+        f"No preprocessing output found. Expected {INPUT_PATH} "
+        f"(run preprocessing_tester.py first) or {LEGACY_INPUT_PATH}."
+    )
 
-misclassified = pd.read_excel(INPUT_PATH, sheet_name="Misclassified_Rows")
-misclassified.columns = misclassified.columns.str.strip()
+xl = pd.ExcelFile(input_path)
 
-if "All_COTA_With_Transitions" in xl.sheet_names:
-    all_rows = pd.read_excel(INPUT_PATH, sheet_name="All_COTA_With_Transitions")
-    all_rows.columns = all_rows.columns.str.strip()
+# preprocessing_tester.py writes "All_Data"; the legacy workbook writes
+# "All_COTA_With_Transitions". Both hold every COTA row with transition columns.
+all_rows_sheet = next(
+    (name for name in ("All_Data", "All_COTA_With_Transitions") if name in xl.sheet_names),
+    None,
+)
+if all_rows_sheet is None:
+    raise ValueError(
+        f"{input_path.name} must contain an 'All_Data' or "
+        f"'All_COTA_With_Transitions' sheet. Found: {xl.sheet_names}"
+    )
+
+all_rows = pd.read_excel(input_path, sheet_name=all_rows_sheet)
+all_rows.columns = all_rows.columns.str.strip()
+
+# The legacy workbook ships a ready-made misclassified sheet. The newer one only
+# has "Issues_Review", which also folds in needs_context rows, so derive the
+# subset from the status column instead to keep the original row selection.
+if "Misclassified_Rows" in xl.sheet_names:
+    misclassified = pd.read_excel(input_path, sheet_name="Misclassified_Rows")
+    misclassified.columns = misclassified.columns.str.strip()
 else:
-    all_rows = misclassified.copy()
+    if "transition_alignment_status" not in all_rows.columns:
+        raise ValueError(
+            f"Cannot derive misclassified rows: '{all_rows_sheet}' has no "
+            "'transition_alignment_status' column."
+        )
+    misclassified = all_rows[
+        all_rows["transition_alignment_status"].isin(MISCLASSIFIED_STATUSES)
+    ].copy()
+
+print(f"Input: {input_path.name} (all rows from '{all_rows_sheet}')")
+print(f"Loaded {len(all_rows)} total rows, {len(misclassified)} misclassified rows")
 
 required = ["cpid", "_original_row_order", "doctor_lot_numeric_for_transition"]
 missing = [col for col in required if col not in all_rows.columns]
@@ -1056,7 +1097,7 @@ print("\n=== LoT Counts by Regimen ===")
 print(regimen_summary.to_string())
 
 # Save to Excel with detailed results
-with pd.ExcelWriter('lot_counts_with_rules.xlsx') as writer:
+with pd.ExcelWriter(LOT_COUNTS_PATH) as writer:
     lot_df.to_excel(writer, sheet_name='Detailed_LoT_Assignments', index=False)
     regimen_summary.to_excel(writer, sheet_name='Regimen_LoT_Summary', index=False)
 
