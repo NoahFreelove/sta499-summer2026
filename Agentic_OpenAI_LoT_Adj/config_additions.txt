@@ -1,0 +1,8 @@
+Add this setting to config.py (the provided decision.py also falls back to 0.80 if it is absent):
+
+TRIAGE_AUTOACCEPT_THRESHOLD = float(
+    os.getenv("TRIAGE_AUTOACCEPT_THRESHOLD", "0.80")
+)
+
+Optional .env override:
+TRIAGE_AUTOACCEPT_THRESHOLD=0.80
