@@ -260,8 +260,10 @@ def rule_p1_confirmed_progression(row: pd.Series, prev_row: pd.Series, gap_days:
     - Same active drugs with gap ≤ 7 days (prescription renewal)
     - Active drugs are identical and gap ≤ 180 days → defer to Rules 2+3
     """
-    # Check for PD signal
-    discontinue_reason = normalize_text(row.get("discontinue_reason", ""))
+    # Check for PD signal. discontinue_reason describes why a segment ENDED,
+    # so the progression that justifies starting this row as a new line is
+    # recorded on the PREVIOUS row, not the current one.
+    discontinue_reason = normalize_text(prev_row.get("discontinue_reason", "")) if prev_row is not None else ""
     has_pd = any(term in discontinue_reason.lower() for term in ["pd", "progression", "refractory", "progressed"])
 
     if not has_pd:
@@ -319,8 +321,8 @@ def rule_p1b_planned_sequential(row: pd.Series, prev_row: pd.Series, gap_days: f
         if duration < 60 or duration > 365:
             return False, f"prior segment duration {duration} days (not 60-365)"
 
-    # Check for PD signal
-    discontinue_reason = normalize_text(row.get("discontinue_reason", ""))
+    # Check for PD signal (recorded on the previous row - why that segment ended)
+    discontinue_reason = normalize_text(prev_row.get("discontinue_reason", ""))
     has_pd = any(term in discontinue_reason.lower() for term in ["pd", "progression", "refractory"])
     if has_pd:
         return False, "PD signal present"
@@ -897,23 +899,15 @@ def determine_if_new_lot(pattern: str) -> bool:
     """
     Determine if a classification pattern indicates a NEW LOT.
 
-    Based on the rule specification:
-    - Some patterns clearly mean NEW LOT
-    - Some patterns clearly mean MERGE (same LOT)
-    - Some patterns are ambiguous (need review)
+    Every input row is already a vendor-split COTA line (the doctor keeps
+    ~92% of those splits), so the counter keeps the vendor's split unless an
+    explicit merge rule fired. In particular 'default_merge' means "no rule
+    matched" and must KEEP the split - treating it as a merge is what caused
+    the counter to undercount nearly every patient.
     """
 
-    # Patterns that DEFINITELY mean NEW LOT
-    new_lot_patterns = {
-        'p1_confirmed_progression',  # PD = new line
-        'p3_maintenance_after_combination_fallback',  # If P3 fails = new line
-        'new_drug_addition_requires_review',  # Drug addition may be new line
-        'complex_transplant_or_cell_therapy',  # Complex = often new line
-        'complex_multi_drag_change_requires_review',  # Complex change
-        'unknown_pattern_requires_review',  # Can't determine = new line
-    }
-
-    # Patterns that DEFINITELY mean MERGE (same LOT)
+    # Patterns produced by rules that explicitly justify merging the row
+    # into the previous LOT
     merge_patterns = {
         'p1b_planned_sequential',  # VRd → LEN = same line
         'rule1_steroid_only_absorbed',  # Steroids only = not a line
@@ -921,8 +915,8 @@ def determine_if_new_lot(pattern: str) -> bool:
         'rules_2_3_identical_active_drugs',  # Same drugs = same line
         'pre_asct_reinduction',  # Part of transplant plan
         'asct_rule_post_transplant',  # Post-transplant = same line
+        'car_t_rule',  # Conditioning/post-CAR-T window = same line
         'p3_maintenance_after_combination',  # Maintenance = same line
-        'default_merge',  # Default = merge
         'same_exact_regimen_repeated',  # Same regimen = same line
         'same_drug_set_different_regimen_structure',  # Same drugs
         'regimen_phase_drop_or_deescalation',  # De-escalation
@@ -932,22 +926,9 @@ def determine_if_new_lot(pattern: str) -> bool:
         'same_family_drug_substitution',  # Family same = maybe same line
     }
 
-    # Patterns that are AMBIGUOUS (default to new LOT for safety)
-    ambiguous_patterns = {
-        'same_family_drug_substitution',  # Family same but drug changed
-    }
-
-    if pattern in new_lot_patterns:
-        return True
-    elif pattern in merge_patterns:
-        return False
-    elif pattern in ambiguous_patterns:
-        # For ambiguous cases, flag for review but default to new LOT
-        # (better to over-count than under-count)
-        return True
-    else:
-        # Unknown pattern - treat as new LOT
-        return True
+    # Anything else (p1_confirmed_progression, default_merge fallback,
+    # review-needed patterns) keeps the vendor's split -> new LOT.
+    return pattern not in merge_patterns
 
 
 def get_lot_count_for_regimen(df_all_patients):
@@ -1085,8 +1066,7 @@ classification_df = pd.DataFrame(classified_records)
 result = pd.concat([misclassified.reset_index(drop=True), classification_df], axis=1)
 
 # -----------------------
-# TRYING THE LOT COUNTER
-# SEEMS TO BE HIGHLY INACCURATE...
+# LOT COUNTER
 # -----------------------
 
 # After loading your data and applying the rule engine:
