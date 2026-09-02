@@ -233,15 +233,14 @@ def apply_steroid_first_segment_absorption(df: pd.DataFrame) -> pd.DataFrame:
     is <= STEROID_FIRST_SEGMENT_GAP_DAYS, the steroid-only segment is
     absorbed into that first active segment (same LOT start).
 
-    Implementation note: the steroid-only row is kept, not dropped. The
-    downstream rule engine (lot_algo_new_cota.py) already defaults every
-    transition to MERGE unless a specific rule forces NEW (only P1
-    confirmed-progression does), so leaving this row in place is sufficient
-    for it to land in the same LOT as the following active segment -- no
-    row-deletion is needed to achieve the merge, and deleting it would break
-    the 1:1 row alignment needed to attach vendor/deterministic/agentic
-    labels back onto the original export. What this function still needs to
-    do is pull the active segment's own start date back to the steroid-only
+    Implementation note: the steroid-only row is kept, not dropped, so the
+    1:1 row alignment needed to attach vendor/deterministic/agentic labels
+    back onto the original export is preserved. The downstream rule engine
+    (lot_algo_new_cota.py) defaults unmatched transitions to a NEW LoT, so
+    the merge itself is done there by the "Rule 1 (first segment)" check,
+    which looks for a steroid-only first segment followed within
+    STEROID_FIRST_SEGMENT_GAP_DAYS by an active segment. What this function
+    does is pull the active segment's own start date back to the steroid-only
     segment's start date (same LOT start per spec) when the gap qualifies.
 
     Must run after compute_derived_columns() (needs is_steroid_only) and
