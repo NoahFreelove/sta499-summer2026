@@ -1,59 +1,12 @@
 """
-Deterministic Line-of-Therapy (LoT) counter for the new COTA export.
+Deterministic Line-of-Therapy counter for the new COTA export.
 
-Input : Output/COTA_cleaned.xlsx (written by preprocessing_new_cota.py)
+Input : Output/COTA_cleaned.xlsx (from preprocessing_new_cota.py)
 Output: Output/COTA_cleaned_with_LOT.xlsx
 
-How it works
-------------
-Every preprocessed row is one vendor line of therapy. The engine walks each
-patient's rows in order and, for every consecutive pair, decides whether the
-later row continues the current LoT (MERGE) or starts a new one (NEW). Rules
-are applied first-match-wins, in this order:
-
-    P1 (confirmed progression)      -> NEW
-    P1b (planned sequential)        -> MERGE
-    Rule 1 (steroid-only segment)   -> MERGE
-    Rule 1 (steroid-only 1st seg.)  -> MERGE
-    Mandatory-drug planned triplet  -> MERGE
-    Rules 2+3 (identical drugs)     -> MERGE
-    Pre-ASCT re-induction           -> MERGE
-    ASCT rule                       -> MERGE
-    CAR-T rule                      -> MERGE
-    P3 (maintenance after combo)    -> MERGE
-    Default                         -> NEW  (flagged for review)
-
-Because the engine can only ever merge vendor lines, "agreement with the
-vendor" means keeping the vendor split. The rules that merge are calibrated
-against the reviewer-adjudicated subset (see score_vs_adjudication.py).
-
-Change log (Sept 2026, after review of the adjudicated data)
-------------------------------------------------------------
-* P1 no longer defers to the ASCT rule when the prior line contains a
-  transplant, and no longer defers identical-drug retreatment to Rules 2+3.
-  A documented progression is a new LoT unless it is a <=7-day renewal.
-* ASCT rule rewritten. It used to merge any transition adjacent to a
-  transplant line within 180 days regardless of drugs or progression; in this
-  export the transplant line usually already contains the maintenance, so the
-  following vendor line is a genuinely new LoT. It now merges only
-  (a) induction -> transplant line whose pre-transplant drugs come from the
-      induction, or
-  (b) transplant line -> maintenance whose drugs are a subset of that line,
-  and never across a documented progression or a gap > 180 days.
-* CAR-T rule direction fixed. The "post-CAR-T exclusion" was being applied to
-  the segment BEFORE CAR-T (bridging therapy), which reviewers count as its
-  own line. Lymphodepletion right before infusion still merges.
-* Rules 2+3 compare the full active drug set as well as the tail chunk, so
-  [DRd],[Dd] -> [DRd] (a drug held for toxicity and resumed) merges.
-* Counting pass now tracks the current LoT start date (the mandatory-triplet
-  rule measured from the patient's very first line, so it never fired). The
-  pre-ASCT re-induction rule used to compare the prior row to itself (so it
-  never fired); it now fires at the induction -> re-induction transition by
-  looking one row ahead for the transplant.
-* Steroid-only FIRST segment absorption (spec rule 1) is handled here; the
-  preprocessing step only aligns the start date.
-* Output workbook is written once (it was written twice; the second write
-  dropped the Patient_Summary sheet and the pivot's regimen index).
+Each row is one vendor line. For every consecutive pair the engine decides
+MERGE or NEW, first match wins, in the order listed in determine_transition_type.
+Unmatched transitions default to NEW and are flagged for review.
 """
 
 from __future__ import annotations
