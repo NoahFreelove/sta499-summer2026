@@ -58,7 +58,8 @@ PATTERN_COLORS = {
     "asct_rule_post_transplant": "FFCCCC",  # Light red
     "car_t_rule": "FF99CC",  # Pink
     "p3_maintenance_after_combination": "CCFF99",  # Yellow-green
-    "default_merge": "E6E6E6",  # Light grey
+    "default_merge": "E6E6E6",  # Light grey (legacy, kept for old data)
+    "default_new_lot": "FFE6CC",  # Light orange - unmatched transition, new LOT, flagged for review
 }
 
 FIXABLE_PATTERNS = {
@@ -75,7 +76,9 @@ FIXABLE_PATTERNS = {
     "pre_asct_reinduction",
     "asct_rule_post_transplant",
     "p3_maintenance_after_combination",
-    "default_merge",
+    # NOTE: "default_new_lot" intentionally excluded -- it's the
+    # least-specified case (no rule matched), so it should be flagged for
+    # review (review_flag=2) rather than treated as auto-fixable.
 }
 
 COMPLEX_THERAPY_KEYWORDS = {
@@ -780,10 +783,12 @@ def classify_row_with_rules(row: pd.Series, prev_row: pd.Series | None,
             explanation = "P3: Maintenance after combination (de-escalation to single agent)"
             rule_applied = "P3"
 
-        # Default: Merge (same LOT)
+        # FIX: UNDERCOUNTING BUG (see determine_transition_type for full
+        # explanation) -- kept consistent with the actual lot_number logic.
+        # Default: New LOT (regimen changed, no specific rule matched)
         else:
-            pattern = "default_merge"
-            explanation = "Default: Merge (same LOT) - no specific rule matched"
+            pattern = "default_new_lot"
+            explanation = "Default: New LOT - regimen changed, no specific rule matched"
             rule_applied = "Default"
 
     # Determine review flag
@@ -1115,13 +1120,19 @@ def determine_transition_type(current_row: pd.Series, previous_row: pd.Series,
             'needs_review': False
         }
 
-    # Default: Merge (same LOT) per specification
+    # FIX: UNDERCOUNTING BUG. This fallback previously returned 'MERGE',
+    # meaning only P1 (a documented PD/progression signal) could ever create
+    # a new LOT -- every other unmatched transition silently merged, even
+    # when the regimen changed substantially. A regimen change with no
+    # documented progression and no matching merge rule should default to a
+    # NEW LOT (standard convention), not a merge. This is flagged for
+    # review since it's the least-specified case.
     return {
-        'decision': 'MERGE',
+        'decision': 'NEW',
         'rule_applied': 'Default',
-        'pattern': 'default_merge',
-        'explanation': 'Default: Merge (same LOT) - no specific rule matched',
-        'needs_review': False
+        'pattern': 'default_new_lot',
+        'explanation': 'Default: New LOT - regimen changed, no specific merge rule matched',
+        'needs_review': True
     }
 
 # UPDATE MAIN EXECUTION CODE -- VER 3
